@@ -1,0 +1,32 @@
+[project]
+name = "research-agent"
+version = "0.1.0"
+description = "A provider-agnostic iterative web-research agent: generate a query, search, summarize, reflect, repeat -- with a quantitative evaluation harness."
+authors = [
+    { name = "Aditya Sankranthi" }
+]
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+dependencies = [
+    "litellm>=1.55.0",
+    "duckduckgo-search>=7.3.0",
+    "tavily-python>=0.7.0",
+    "python-dotenv>=1.0.1",
+    "typer>=0.15.1",
+    "rich>=13.9.4",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.3.4"]
+
+[project.scripts]
+research-agent = "research_agent.cli:app"
+research-agent-eval = "eval.run_eval:app"
+
+[build-system]
+requires = ["setuptools>=73.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["research_agent", "eval"]
