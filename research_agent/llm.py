@@ -103,6 +103,10 @@ class LLMClient:
             api_base=self.api_base,
             timeout=self.timeout,
             max_tokens=self.max_tokens,
+            # litellm's completion() otherwise imports its MCP-handler code path
+            # whenever `tools` is set, which pulls in its proxy-server dependency
+            # tree (fastapi, orjson, ...) for a feature this project doesn't use.
+            _skip_mcp_handler=True,
         )
         self._track_cost(response)
 
