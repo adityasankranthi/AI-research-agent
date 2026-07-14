@@ -9,6 +9,11 @@ __pycache__/
 dist/
 build/
 *.trajectory.json
+.DS_Store
 
 # Personal debugging reference -- not for public distribution.
 ARCHITECTURE.md
+
+# Raw screenshot captures (full browser chrome, uncropped) -- docs/images/ holds
+# the cropped versions actually referenced by the README.
+/Screenshots/
