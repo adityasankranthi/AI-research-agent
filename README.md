@@ -1,6 +1,6 @@
 # research-agent
 
-A provider-agnostic web-research agent: generate a query → search → summarize → reflect
+AI web-research agent: generate a query → search → summarize → reflect
 → repeat, then emit a cited markdown report. No orchestration framework — the entire
 loop is plain, readable Python. A quantitative eval harness (both a small internal
 dataset and a real published benchmark) means every design decision below has a number
