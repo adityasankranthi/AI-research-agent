@@ -5,9 +5,14 @@ then emit a cited markdown report. No orchestration framework — the entire loo
 plain, readable Python, with a quantitative eval harness backing every design decision
 below.
 
-| Ask | Watch it research | Get a cited, checked report |
-|---|---|---|
-| ![Idle screen](docs/images/idle.png) | ![Live research progress](docs/images/researching.png) | ![Final cited report](docs/images/result.png) |
+Ask 
+![Idle screen](docs/images/idle.png) 
+
+Watch it research 
+![Live research progress](docs/images/researching.png) 
+
+Get a cited, checked report
+![Final cited report](docs/images/result.png) 
 
 ## The result
 
