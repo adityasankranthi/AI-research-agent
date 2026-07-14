@@ -23,7 +23,7 @@ def test_run_eval_prints_score_table_and_aggregate(monkeypatch):
     fake_cases = [EvalCase(topic="topic one", key_facts=["fact a", "fact b"])]
     monkeypatch.setattr("eval.run_eval.DATASET", fake_cases)
 
-    def fake_run(topic, llm, backend, config, on_iteration=None):
+    def fake_run(topic, llm, tools, config, on_iteration=None):
         state = ResearchState(topic=topic, running_summary="fact a is covered here")
         state.add_sources([Source(title="S", url="http://s.com", content="c")])
         state.loop_count = 2
@@ -50,7 +50,7 @@ def test_run_eval_preserves_dataset_order_regardless_of_completion_order(monkeyp
     ]
     monkeypatch.setattr("eval.run_eval.DATASET", fake_cases)
 
-    def fake_run(topic, llm, backend, config, on_iteration=None):
+    def fake_run(topic, llm, tools, config, on_iteration=None):
         # Topic A finishes last, reversing completion order relative to submission
         # order -- the printed table must still list A, B, C (dataset order).
         if topic == "topic A":

@@ -48,8 +48,8 @@ def _run_case(
     than sharing one across threads -- LLMClient mutates total_cost/n_calls on every
     call, and per-task instances avoid that shared-mutable-state race entirely
     instead of adding lock complexity. Both are plain dataclasses, cheap to build."""
-    llm, backend = build_components(config)
-    state = run(topic=case.topic, llm=llm, backend=backend, config=config)
+    llm, tools = build_components(config)
+    state = run(topic=case.topic, llm=llm, tools=tools, config=config)
 
     fact_judge = _build_judge(judge_kind, judge_model)
     fact_results = fact_judge.score_facts(state.running_summary, case.key_facts)

@@ -49,6 +49,15 @@ def main(
         help="'duckduckgo' (no key needed) or 'tavily' (needs TAVILY_API_KEY).",
     ),
     max_search_results: int = typer.Option(3, "--max-search-results"),
+    fetch_full_page: bool = typer.Option(
+        False,
+        "--fetch-full-page/--no-fetch-full-page",
+        help=(
+            "Fetch full page text for new sources instead of relying on the search "
+            "backend's short snippet (see --max-fetch-per-loop in the RESEARCH_AGENT_ "
+            "env vars to cap how many pages get fetched per loop)."
+        ),
+    ),
     output: Optional[Path] = typer.Option(None, "--output", help="Write the final markdown report here."),
     trajectory: Optional[Path] = typer.Option(
         None, "--trajectory", help="Write the full run (state + cost) as JSON here."
@@ -60,8 +69,9 @@ def main(
         search_backend=search_backend,
         max_loops=loops,
         max_search_results=max_search_results,
+        fetch_full_page=fetch_full_page,
     )
-    llm, backend = build_components(config)
+    llm, tools = build_components(config)
 
     console.print(Panel(topic, title="Researching", style="bold"))
 
@@ -72,7 +82,7 @@ def main(
             f"(sources so far: {len(state.sources)})"
         )
 
-    state = run(topic=topic, llm=llm, backend=backend, config=config, on_iteration=on_iteration)
+    state = run(topic=topic, llm=llm, tools=tools, config=config, on_iteration=on_iteration)
 
     console.print(Panel(state.running_summary, title="Final Report"))
     console.print(f"[dim]{llm.n_calls} LLM calls, ${llm.total_cost:.4f} total cost[/dim]")

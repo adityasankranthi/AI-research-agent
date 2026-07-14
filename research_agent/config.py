@@ -34,7 +34,18 @@ class Config:
     search_backend: str = "duckduckgo"
     max_loops: int = 3
     max_search_results: int = 3
+    # When set, up to `max_fetch_per_loop` new sources per loop have their full page
+    # text fetched (via the "fetch_page" tool) and substituted for the search
+    # backend's short snippet -- see research_agent/fetch.py.
     fetch_full_page: bool = False
+    fetch_timeout_seconds: float = 15.0
+    # Conservative on purpose: a fetched page's extracted text is added to the
+    # summarizer's context on top of the running summary, which matters for
+    # small-context local models.
+    fetch_max_chars: int = 4000
+    # Independent of max_search_results -- raising search breadth shouldn't
+    # silently multiply how many pages get fetched (and how long that takes).
+    max_fetch_per_loop: int = 3
     # A cold or "thinking" local model can take 60-90s+ for a modest response, so a
     # short timeout fires on calls that are genuinely still working, not just hung.
     # Generous on purpose; hosted API providers return well before this.
@@ -47,6 +58,13 @@ class Config:
     # `max_tokens` at the model's absolute ceiling, even though actual usage is far
     # lower -- an explicit, modest cap avoids that regardless of provider.
     max_output_tokens: int = 2048
+    # Appends an "### Unverified claims" footer listing sentences whose inline
+    # citation doesn't match a gathered source -- see research_agent/grounding.py.
+    enable_citation_grounding_check: bool = True
+    # Lets reflect() end the loop before max_loops when it judges the summary
+    # already sufficiently addresses the topic. A killswitch for cases needing a
+    # reproducible, fixed loop count (e.g. comparing runs in the eval harness).
+    allow_early_stop: bool = True
 
     def __post_init__(self) -> None:
         # Only Ollama needs a local base URL by default -- hosted providers (and

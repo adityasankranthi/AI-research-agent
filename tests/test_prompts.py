@@ -38,4 +38,4 @@ def test_search_query_tool_schema_has_required_fields():
 
 def test_reflection_tool_schema_has_required_fields():
     params = REFLECTION_TOOL["function"]["parameters"]
-    assert set(params["required"]) == {"knowledge_gap", "follow_up_query"}
+    assert set(params["required"]) == {"knowledge_gap", "follow_up_query", "research_complete"}

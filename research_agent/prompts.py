@@ -42,12 +42,17 @@ addressing the user's research topic.
 When creating a NEW summary:
 1. Highlight the most relevant information related to the topic from the search results.
 2. Ensure a coherent flow of information.
+3. Whenever you state a fact drawn from a source, cite it inline immediately after the \
+claim using markdown link syntax: [Source Title](URL), using the exact Title and URL \
+given in that source's block below. Do not invent a citation for a claim that isn't \
+drawn from the given sources.
 
 When EXTENDING an existing summary:
 1. Read the existing summary and new search results carefully.
 2. For each piece of new information: integrate it into an existing paragraph if it's \
 related, add a new paragraph if it's new but relevant, or skip it if it isn't relevant.
 3. Verify that your final output differs from the input summary.
+4. Preserve existing inline [Source Title](URL) citations, and cite new claims the same way.
 
 Start directly with the updated summary, without preamble or titles. Do not use XML \
 tags in the output."""
@@ -69,10 +74,18 @@ def summarizer_user_message(topic: str, existing_summary: str, new_context: str)
 REFLECTION_SYSTEM_PROMPT = """You are an expert research assistant analyzing a summary \
 about {research_topic}.
 
-1. Identify knowledge gaps or areas that need deeper exploration.
-2. Generate a follow-up question that would help expand understanding.
-3. Focus on technical details, implementation specifics, or emerging trends not yet \
-covered.
+First, judge whether the summary already sufficiently answers the research topic as a \
+person asking this question would reasonably expect -- not whether every conceivable \
+tangent, mechanism, or edge case has been explored. Most direct factual questions are \
+fully answered in one or two loops; do not manufacture a gap just to have one. If it \
+does, set research_complete to true and you're done -- follow_up_query and \
+knowledge_gap won't be used, but still fill them in briefly.
+
+Otherwise, if there's a genuine, material gap in addressing the topic itself (not a \
+tangential technical detail or emerging trend unrelated to what was actually asked):
+1. Identify that knowledge gap.
+2. Generate a follow-up query that would help close it.
+3. Set research_complete to false.
 
 Ensure the follow-up query is self-contained and includes enough context to be used \
 directly as a web search query.
@@ -99,8 +112,16 @@ REFLECTION_TOOL = {
                     "type": "string",
                     "description": "A specific, self-contained search query to address the gap.",
                 },
+                "research_complete": {
+                    "type": "boolean",
+                    "description": (
+                        "True if the current summary already sufficiently addresses the "
+                        "research topic and further search loops are unlikely to add "
+                        "meaningful new information. Default to false if unsure."
+                    ),
+                },
             },
-            "required": ["knowledge_gap", "follow_up_query"],
+            "required": ["knowledge_gap", "follow_up_query", "research_complete"],
         },
     },
 }

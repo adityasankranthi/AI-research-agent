@@ -80,9 +80,85 @@ split across 3 workers. Fact-coverage scores vary slightly run-to-run (72% vs. 7
 these two runs) since model generation isn't deterministic; the wall-clock comparison
 used the same everything else.
 
-Full test suite: **63 tests passing**, all mocked at the network boundary
-(`litellm.completion`, `DDGS`, `TavilyClient`) — no test makes a real network call, so the
-suite runs in ~2 seconds and is safe to run constantly.
+Full test suite: **100 tests passing**, all mocked at the network boundary
+(`litellm.completion`, `DDGS`, `TavilyClient`, `httpx.get`) — no test makes a real network
+call, so the suite runs in ~2 seconds and is safe to run constantly.
+
+### DeepResearch Bench
+
+Full run against all 50 English [DeepResearch Bench](https://github.com/Ayanami0730/deep_research_bench)
+tasks (`openrouter/anthropic/claude-haiku-4-5` + Tavily search, 4 research loops per
+topic — see [`docs/deepresearch-bench.md`](docs/deepresearch-bench.md) for the full
+methodology and a tuning experiment that didn't pay off):
+
+| RACE dimension | Score |
+|---|---|
+| Comprehensiveness | 0.34 |
+| Insight | 0.34 |
+| Instruction Following | 0.37 |
+| Readability | 0.38 |
+| **Overall** | **0.36** |
+
+| FACT metric | Value |
+|---|---|
+| Avg. citations per report | 17.98 |
+| Avg. valid citations per report | 16.38 |
+| **Citation accuracy** | **91.1%** |
+
+**vs. the [public leaderboard](https://huggingface.co/spaces/muset-ai/DeepResearch-Bench-Leaderboard)**
+(same GPT-5.5/GPT-5.4-mini judges as the entries below, so the scoring itself is
+apples-to-apples; the coverage isn't -- this run is 50 English tasks with a small, cheap
+model, not the full 100-task bilingual set most entries report):
+
+| | RACE overall | Rank | Citation accuracy | Effective citations |
+|---|---|---|---|---|
+| sonar-reasoning | 37.75 | 41 | 52.6% | 13.4 |
+| claude-3-7-sonnet-with-search | 36.63 | 42 | 87.3% | 24.5 |
+| sonar-pro | 36.19 | 43 | 79.7% | 16.8 |
+| **research-agent (this project)** | **35.50** | **44 / 46** | **91.1%** | **16.4** |
+| gemini-2.5-pro-preview-05-06 | 31.90 | 45 | — | — |
+| gpt-4o-search-preview | 30.74 | 46 | 86.6% | 5.1 |
+
+Two honest takeaways: RACE overall lands in the bottom quartile -- unsurprising for a
+report-comprehensiveness metric judged against PhD-level reference articles, running on
+a small, cheap model with no dedicated planning step. But citation accuracy (91.1%) is
+the **highest of any entry that reports FACT at all**, beating every frontier-model
+deep-research product on the board -- a direct result of the inline-citation +
+grounding-check work below. The tradeoff is visible in "effective citations": models like
+`gemini-2.5-pro-deepresearch` cite ~10x more sources per report (165 vs. our 16), just
+less accurately (78.3%) -- this agent is precise rather than voluminous.
+
+## How these results were achieved
+
+Four architecture changes, each validated against this benchmark rather than assumed:
+
+- **A formal `Tool` abstraction** (`research_agent/tools.py`) standardizing what a
+  capability the agent loop can call looks like (name, schema, `run()`), without turning
+  the loop itself into a framework -- it still hardcodes *when* to call which tool.
+- **A real page-fetch tool** (`research_agent/fetch.py`) replacing a config flag that had
+  quietly done nothing since it was added -- sources now carry full page text instead of
+  a short search snippet when enabled.
+- **Inline citations + a citation-grounding check** (`research_agent/grounding.py`): the
+  summarizer now cites claims inline as `[Title](URL)` instead of only listing sources in
+  a trailing bibliography. This wasn't a cosmetic change -- DeepResearch Bench's own FACT
+  pipeline only extracts citations that appear next to the claim in the body text; without
+  this, FACT would have scored this agent's reports at 0% citation accuracy regardless of
+  everything else.
+- **Dynamic early-stop reflection**: the reflect step can now end the research loop before
+  `--loops` is reached once it judges a topic sufficiently covered. The first version of
+  this never actually fired in live testing -- the prompt's own wording ("identify a
+  knowledge gap") biased the model toward always finding one. Rewriting it to judge
+  sufficiency *first* fixed this: confirmed live at 1/5 loops on a trivial factual
+  question and the full 4/4 on a genuinely broad one.
+
+One tuning path was tried and explicitly **didn't** make it into the defaults: raising
+`--loops` and `--max-search-results` for the benchmark run initially made reports *worse*
+(RACE overall 0.25 vs. 0.38 baseline) because `max_output_tokens` is a fixed ceiling on
+every LLM call -- more gathered material just got compressed into the same report length
+instead of a deeper one. Raising the output budget alongside it recovered most of the
+loss but still didn't clearly beat the simple baseline at the sample size tested. Full
+writeup, including the exact before/after numbers, in
+[`docs/deepresearch-bench.md`](docs/deepresearch-bench.md).
 
 ## Requirements
 
@@ -155,6 +231,15 @@ actually supported.
 | `--judge` | `llm` | `llm` or `keyword` |
 | `--judge-model` | `openrouter/anthropic/claude-haiku-4-5` | Model used when `--judge llm` |
 | `--concurrency` | `3` | Topics researched in parallel |
+
+### DeepResearch Bench
+
+Beyond this repo's own small eval dataset, the agent can also be scored against
+[DeepResearch Bench](https://github.com/Ayanami0730/deep_research_bench) -- 100
+PhD-level research tasks judged on report comprehensiveness, insight, and citation
+trustworthiness. `research-agent-bench` generates the article JSONL that benchmark's
+scoring scripts expect; see [`docs/deepresearch-bench.md`](docs/deepresearch-bench.md)
+for the full two-repo workflow.
 
 ### Tests
 

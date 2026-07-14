@@ -15,6 +15,8 @@ dependencies = [
     "python-dotenv>=1.0.1",
     "typer>=0.15.1",
     "rich>=13.9.4",
+    "httpx>=0.27.0",
+    "lxml>=5.0.0",
 ]
 
 [project.optional-dependencies]
@@ -23,6 +25,7 @@ dev = ["pytest>=8.3.4"]
 [project.scripts]
 research-agent = "research_agent.cli:app"
 research-agent-eval = "eval.run_eval:app"
+research-agent-bench = "eval.deepresearch_bench:app"
 
 [build-system]
 requires = ["setuptools>=73.0.0", "wheel"]

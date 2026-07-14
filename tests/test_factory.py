@@ -15,8 +15,8 @@ def test_build_components_wires_llm_from_config():
 
 def test_build_components_wires_search_backend_from_config():
     config = Config(search_backend="duckduckgo")
-    _, backend = build_components(config)
-    assert isinstance(backend, DuckDuckGoBackend)
+    _, tools = build_components(config)
+    assert isinstance(tools["web_search"].backend, DuckDuckGoBackend)
 
 
 def test_build_components_wires_tavily_backend(monkeypatch):
@@ -24,5 +24,5 @@ def test_build_components_wires_tavily_backend(monkeypatch):
         "research_agent.search.TavilyClient", lambda api_key=None: object()
     )
     config = Config(search_backend="tavily")
-    _, backend = build_components(config)
-    assert isinstance(backend, TavilyBackend)
+    _, tools = build_components(config)
+    assert isinstance(tools["web_search"].backend, TavilyBackend)

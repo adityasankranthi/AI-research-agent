@@ -1,6 +1,8 @@
+from dataclasses import dataclass
 from typing import Any, Callable, Optional
 
 from research_agent.config import Config
+from research_agent.grounding import annotate_ungrounded, check_grounding
 from research_agent.llm import LLMClient
 from research_agent.prompts import (
     QUERY_WRITER_SYSTEM_PROMPT,
@@ -12,8 +14,9 @@ from research_agent.prompts import (
     reflection_user_message,
     summarizer_user_message,
 )
-from research_agent.search import SearchBackend, format_citations, format_for_context
+from research_agent.search import format_citations, format_for_context
 from research_agent.state import ResearchState, Source
+from research_agent.tools import Tool
 
 
 def _call_tool_with_retry(
@@ -60,8 +63,31 @@ def generate_query(llm: LLMClient, state: ResearchState, max_retries: int = 0) -
     return f"Tell me more about {state.topic}"
 
 
-def web_research(backend: SearchBackend, query: str, max_results: int) -> list[Source]:
-    return backend.search(query, max_results=max_results)
+def web_research(tools: dict[str, Tool], query: str) -> list[Source]:
+    return tools["web_search"].run(query=query)
+
+
+def enrich_with_fetch(
+    tools: dict[str, Tool], sources: list[Source], max_fetch: int
+) -> list[Source]:
+    """Replace up to `max_fetch` sources' short search-snippet content with the
+    full page text, when a "fetch_page" tool is registered (Config.fetch_full_page).
+    A no-op passthrough otherwise, so callers never need an `if` around this."""
+    fetch_tool = tools.get("fetch_page")
+    if fetch_tool is None:
+        return sources
+
+    enriched: list[Source] = []
+    for i, source in enumerate(sources):
+        if i >= max_fetch:
+            enriched.append(source)
+            continue
+        result = fetch_tool.run(url=source.url)
+        if result.ok and len(result.text) > len(source.content):
+            enriched.append(Source(title=source.title, url=source.url, content=result.text))
+        else:
+            enriched.append(source)
+    return enriched
 
 
 def _looks_broken(content: str, system_prompt: str) -> bool:
@@ -115,7 +141,13 @@ def summarize(
     return content
 
 
-def reflect(llm: LLMClient, state: ResearchState, max_retries: int = 0) -> str:
+@dataclass
+class Reflection:
+    follow_up_query: str
+    research_complete: bool = False
+
+
+def reflect(llm: LLMClient, state: ResearchState, max_retries: int = 0) -> Reflection:
     messages = [
         {
             "role": "system",
@@ -125,13 +157,19 @@ def reflect(llm: LLMClient, state: ResearchState, max_retries: int = 0) -> str:
     ]
     args = _call_tool_with_retry(llm, messages, REFLECTION_TOOL, "follow_up_query", max_retries)
     if args and args.get("follow_up_query"):
-        return args["follow_up_query"]
-    return f"Tell me more about {state.topic}"
+        return Reflection(
+            follow_up_query=args["follow_up_query"],
+            research_complete=bool(args.get("research_complete", False)),
+        )
+    return Reflection(follow_up_query=f"Tell me more about {state.topic}")
 
 
-def finalize(state: ResearchState) -> ResearchState:
+def finalize(state: ResearchState, enable_grounding_check: bool = True) -> ResearchState:
+    summary = state.running_summary
+    if enable_grounding_check:
+        summary = annotate_ungrounded(summary, check_grounding(summary, state.sources))
     state.running_summary = (
-        f"## Summary\n{state.running_summary}\n\n### Sources:\n{format_citations(state.sources)}"
+        f"## Summary\n{summary}\n\n### Sources:\n{format_citations(state.sources)}"
     )
     return state
 
@@ -139,7 +177,7 @@ def finalize(state: ResearchState) -> ResearchState:
 def run(
     topic: str,
     llm: LLMClient,
-    backend: SearchBackend,
+    tools: dict[str, Tool],
     config: Config,
     on_iteration: Optional[Callable[[int, ResearchState], None]] = None,
 ) -> ResearchState:
@@ -151,7 +189,12 @@ def run(
     summarizes, then (except on the final iteration, where the result would never be
     used) reflects to produce the *next* iteration's search query -- skipping that
     last reflection avoids paying for a call whose output is guaranteed to be
-    discarded.
+    discarded. If reflect() judges the summary already sufficiently addresses the
+    topic (`Reflection.research_complete`) and `config.allow_early_stop` is set, the
+    loop ends there instead of running to `max_loops` -- always after that loop's
+    summarize()/on_iteration() have already run, so it never skips summarizing a
+    completed loop's sources; `state.loop_count` simply reads lower than
+    `config.max_loops` when this fires.
 
     `on_iteration`, if given, is called after each loop's summary is ready and
     before that loop's reflection -- a plain callback for whoever's driving the loop
@@ -171,7 +214,8 @@ def run(
     state.search_query = generate_query(llm, state, max_retries=retries)
 
     for i in range(config.max_loops):
-        new_sources = web_research(backend, state.search_query, config.max_search_results)
+        new_sources = web_research(tools, state.search_query)
+        new_sources = enrich_with_fetch(tools, new_sources, config.max_fetch_per_loop)
         state.add_sources(new_sources)
 
         if new_sources:
@@ -183,6 +227,9 @@ def run(
             on_iteration(i, state)
 
         if i < config.max_loops - 1:
-            state.search_query = reflect(llm, state, max_retries=retries)
+            reflection = reflect(llm, state, max_retries=retries)
+            if config.allow_early_stop and reflection.research_complete:
+                break
+            state.search_query = reflection.follow_up_query
 
-    return finalize(state)
+    return finalize(state, enable_grounding_check=config.enable_citation_grounding_check)

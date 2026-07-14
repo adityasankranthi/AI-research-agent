@@ -45,3 +45,23 @@ def test_bool_env_var_coercion(monkeypatch):
     monkeypatch.setenv("RESEARCH_AGENT_FETCH_FULL_PAGE", "true")
     config = Config.from_env()
     assert config.fetch_full_page is True
+
+
+def test_fetch_defaults_are_conservative():
+    config = Config()
+    assert config.fetch_full_page is False
+    assert config.fetch_timeout_seconds == 15.0
+    assert config.fetch_max_chars == 4000
+    assert config.max_fetch_per_loop == 3
+
+
+def test_fetch_timeout_seconds_env_var_coerces_to_float(monkeypatch):
+    monkeypatch.setenv("RESEARCH_AGENT_FETCH_TIMEOUT_SECONDS", "7.5")
+    config = Config.from_env()
+    assert config.fetch_timeout_seconds == 7.5
+
+
+def test_fetch_max_chars_env_var_coerces_to_int(monkeypatch):
+    monkeypatch.setenv("RESEARCH_AGENT_FETCH_MAX_CHARS", "8000")
+    config = Config.from_env()
+    assert config.fetch_max_chars == 8000

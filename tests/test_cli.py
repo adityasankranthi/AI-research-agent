@@ -13,7 +13,7 @@ class _FakeLLMClient:
 
 
 def test_cli_runs_prints_report_and_writes_output_and_trajectory(tmp_path, monkeypatch):
-    def fake_run(topic, llm, backend, config, on_iteration=None):
+    def fake_run(topic, llm, tools, config, on_iteration=None):
         state = ResearchState(topic=topic)
         state.add_sources([Source(title="A", url="http://a.com", content="a")])
         state.loop_count = 1
@@ -60,7 +60,7 @@ def test_cli_does_not_default_api_base_for_a_hosted_model(monkeypatch):
         captured["api_base"] = config.api_base
         return _FakeLLMClient(), object()
 
-    def fake_run(topic, llm, backend, config, on_iteration=None):
+    def fake_run(topic, llm, tools, config, on_iteration=None):
         return ResearchState(topic=topic, running_summary="summary")
 
     monkeypatch.setattr("research_agent.cli.build_components", fake_build_components)
@@ -80,7 +80,7 @@ def test_cli_defaults_api_base_for_ollama_model(monkeypatch):
         captured["api_base"] = config.api_base
         return _FakeLLMClient(), object()
 
-    def fake_run(topic, llm, backend, config, on_iteration=None):
+    def fake_run(topic, llm, tools, config, on_iteration=None):
         return ResearchState(topic=topic, running_summary="summary")
 
     monkeypatch.setattr("research_agent.cli.build_components", fake_build_components)
