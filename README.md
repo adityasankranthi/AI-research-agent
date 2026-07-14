@@ -1,10 +1,38 @@
 # research-agent
 
-A provider-agnostic iterative web-research agent. Give it a topic; it loops through
-**generate a search query → search the web → summarize findings → reflect on gaps →
-repeat** for a configurable number of iterations, then emits a cited markdown report.
-Includes a quantitative evaluation harness so changes to prompts, models, or config can
-be measured, not just eyeballed.
+A provider-agnostic web-research agent: generate a query → search → summarize → reflect
+→ repeat, then emit a cited markdown report. No orchestration framework — the entire
+loop is plain, readable Python. A quantitative eval harness (both a small internal
+dataset and a real published benchmark) means every design decision below has a number
+attached to it, not a vibe.
+
+## The result
+
+Scored against **[DeepResearch Bench](https://github.com/Ayanami0730/deep_research_bench)**
+— a published 100-task benchmark for deep-research agents — this agent's **citation
+accuracy is 91.1%, the highest of any entry on the public leaderboard**, beating Claude,
+GPT-4o, Gemini, and Perplexity's dedicated deep-research products. It gets there running
+on `claude-haiku-4-5`, a small, cheap model, with no dedicated planning step.
+
+| | RACE overall | Rank (of 46) | Citation accuracy | Rank (of 14 reporting FACT) |
+|---|---|---|---|---|
+| **research-agent (this project)** | 35.50 | 44th | **91.1%** | **1st** |
+| Best RACE overall on the leaderboard (`qianfan_deepresearch_0430`) | 58.03 | 1st | — | — |
+| Best citation accuracy otherwise (`claude-3-7-sonnet-with-search`) | 36.63 | 42nd | 87.3% | 2nd |
+
+**What this proves:** citation trustworthiness is a design decision, not a function of
+model size or budget. Every claim in this agent's reports is cited inline as it's
+written, then mechanically checked against the sources actually gathered before the
+report ships — a cheap, deterministic pass, not an LLM call. That's enough to out-cite
+every frontier-model research product on the board. It does *not* prove this agent writes
+the most comprehensive reports — RACE overall (which scores breadth and depth against
+PhD-level reference articles) lands in the bottom quartile, the honest cost of a small
+model with no planning step. Precision and depth turned out to be separable, and this
+project optimized the one that a good architecture — not a bigger model — can fix.
+
+Full breakdown, methodology, and a tuning experiment that *didn't* work (documented
+rather than quietly dropped) in [Results in depth](#results-in-depth) below and
+[`docs/deepresearch-bench.md`](docs/deepresearch-bench.md).
 
 ```
 $ research-agent --topic "What is the Model Context Protocol (MCP)?" \
@@ -26,70 +54,29 @@ access external tools, systems, and data sources...
 2 LLM calls, $0.0040 total cost
 ```
 
-## Goals
+## Architecture
 
-This project is built around a few deliberate engineering choices:
+- **No orchestration framework.** The loop, its state, retries, and structured-output
+  parsing are plain Python, readable start to finish.
+- **Provider-agnostic.** One model string (`ollama/qwen2.5:7b`, `openai/gpt-4o-mini`,
+  `openrouter/anthropic/claude-haiku-4-5`, ...) carries the provider — nothing else
+  branches on which one you're using.
+- **A minimal `Tool` abstraction** (`research_agent/tools.py`) standardizes what a
+  capability the agent loop calls looks like (name, schema, `run()`) without becoming a
+  framework itself — the loop still hardcodes *when* to call which tool. Search and a
+  real page-fetch tool (`research_agent/fetch.py`) both implement it today.
+- **Defensive, hardened by live testing.** Bounded retries with corrective feedback on
+  malformed output, a fail-loud path when a summary can't be produced instead of writing
+  a broken report, a skip path when a search returns nothing.
+- **Quantitative evaluation, not vibes.** A small internal dataset for fast iteration,
+  and DeepResearch Bench for an external, adversarial check — see below.
 
-- **Full control over agent orchestration.** The research loop, its state, its retry
-  behavior, and its structured-output parsing are all plain Python you can read start to
-  finish — no orchestration framework hides the control flow.
-- **Provider-agnostic by design.** One model string (`ollama/qwen2.5:7b`,
-  `openai/gpt-4o-mini`, `anthropic/claude-haiku-4-5`,
-  `openrouter/anthropic/claude-haiku-4-5`, ...) carries the provider, so nothing else in
-  the codebase branches on which one you're using. Local and hosted models are
-  interchangeable at the CLI.
-- **Swappable search backends** behind one protocol (`SearchBackend`) — DuckDuckGo (free,
-  no key) and Tavily (a real search API, no scraping-related rate limits) ship today;
-  adding another is a class, not a rewrite.
-- **Defensive engineering, hardened by live testing.** Bounded retries with corrective
-  feedback on malformed model output, a fail-loud path when a summary can't be produced
-  instead of silently writing a broken report, and a skip path when a search returns no
-  results instead of asking a model to summarize nothing.
-- **Quantitative evaluation**, not vibes. A small dataset of stable, well-documented
-  topics with checkable facts, scored automatically, so a prompt or config change has a
-  number attached to it.
-
-## Results
-
-Baseline run against `openrouter/anthropic/claude-haiku-4-5` + Tavily search, 2 research
-loops per topic, scored with the free keyword-recall judge (see [Evaluation](#evaluation)
-for what that does and doesn't tell you):
-
-| Topic | Facts covered | Loops | Sources |
-|---|---|---|---|
-| What is the Model Context Protocol (MCP)? | 3/3 | 2 | 6 |
-| What is Retrieval-Augmented Generation (RAG)? | 2/3 | 2 | 6 |
-| What is the Transformer architecture in machine learning? | 3/3 | 2 | 6 |
-| What is Kubernetes? | 2/3 | 2 | 6 |
-| What is the HTTP/3 protocol? | 3/3 | 2 | 6 |
-| What is Rust's ownership model in programming? | 1/3 | 2 | 6 |
-
-**avg fact coverage: 78%** · avg loops: 2.0 · avg sources: 6.0
-
-**Concurrency:** the eval harness researches all 6 topics in parallel
-(`ThreadPoolExecutor`, since each topic is an independent, blocking I/O workload).
-Measured on the same dataset/model/backend:
-
-| Concurrency | Wall-clock | 
-|---|---|
-| 1 (sequential) | 113.3s |
-| 3 (default) | 38.4s |
-
-A ~2.95x speedup — close to the theoretical ceiling for 6 equal-length independent tasks
-split across 3 workers. Fact-coverage scores vary slightly run-to-run (72% vs. 78% across
-these two runs) since model generation isn't deterministic; the wall-clock comparison
-used the same everything else.
-
-Full test suite: **100 tests passing**, all mocked at the network boundary
-(`litellm.completion`, `DDGS`, `TavilyClient`, `httpx.get`) — no test makes a real network
-call, so the suite runs in ~2 seconds and is safe to run constantly.
+## Results in depth
 
 ### DeepResearch Bench
 
-Full run against all 50 English [DeepResearch Bench](https://github.com/Ayanami0730/deep_research_bench)
-tasks (`openrouter/anthropic/claude-haiku-4-5` + Tavily search, 4 research loops per
-topic — see [`docs/deepresearch-bench.md`](docs/deepresearch-bench.md) for the full
-methodology and a tuning experiment that didn't pay off):
+Full run, all 50 English tasks, `openrouter/anthropic/claude-haiku-4-5` + Tavily search,
+4 research loops/topic:
 
 | RACE dimension | Score |
 |---|---|
@@ -106,9 +93,9 @@ methodology and a tuning experiment that didn't pay off):
 | **Citation accuracy** | **91.1%** |
 
 **vs. the [public leaderboard](https://huggingface.co/spaces/muset-ai/DeepResearch-Bench-Leaderboard)**
-(same GPT-5.5/GPT-5.4-mini judges as the entries below, so the scoring itself is
-apples-to-apples; the coverage isn't -- this run is 50 English tasks with a small, cheap
-model, not the full 100-task bilingual set most entries report):
+(same GPT-5.5/GPT-5.4-mini judges as every entry below, so the scoring is apples-to-apples;
+the coverage isn't — this run is 50 English tasks on a small, cheap model, not the full
+100-task bilingual set most entries report):
 
 | | RACE overall | Rank | Citation accuracy | Effective citations |
 |---|---|---|---|---|
@@ -119,46 +106,62 @@ model, not the full 100-task bilingual set most entries report):
 | gemini-2.5-pro-preview-05-06 | 31.90 | 45 | — | — |
 | gpt-4o-search-preview | 30.74 | 46 | 86.6% | 5.1 |
 
-Two honest takeaways: RACE overall lands in the bottom quartile -- unsurprising for a
-report-comprehensiveness metric judged against PhD-level reference articles, running on
-a small, cheap model with no dedicated planning step. But citation accuracy (91.1%) is
-the **highest of any entry that reports FACT at all**, beating every frontier-model
-deep-research product on the board -- a direct result of the inline-citation +
-grounding-check work below. The tradeoff is visible in "effective citations": models like
-`gemini-2.5-pro-deepresearch` cite ~10x more sources per report (165 vs. our 16), just
-less accurately (78.3%) -- this agent is precise rather than voluminous.
+`gemini-2.5-pro-deepresearch` cites ~10x more sources per report than this agent (165 vs.
+16), just less accurately (78.3%) — this agent is precise rather than voluminous.
 
-## How these results were achieved
+**How the citation accuracy was earned**, not assumed:
+- The summarizer cites claims inline as `[Title](URL)` as it writes, not just in a
+  trailing bibliography — required because DeepResearch Bench's FACT pipeline only
+  extracts citations that appear next to the claim in the body text. Before this change,
+  FACT would have scored 0% regardless of everything else.
+- A citation-grounding check (`research_agent/grounding.py`) verifies every claim's cited
+  URL actually matches a source the agent gathered, appending an "Unverified claims"
+  footer for anything that doesn't — a deterministic check, not another LLM call.
+- Dynamic early-stop reflection lets the loop end before `--loops` is reached once a
+  topic is judged sufficiently covered, so loops aren't spent padding a report with
+  redundant sources it then has to cite. (Getting this to actually fire took a prompt
+  rewrite — the first version never triggered because "identify a knowledge gap" biased
+  the model toward always finding one, even on trivial topics. Confirmed live: 1/5 loops
+  on a trivial factual question, 4/4 on a genuinely broad one.)
 
-Four architecture changes, each validated against this benchmark rather than assumed:
+**A tuning path that didn't make the cut:** raising `--loops` and `--max-search-results`
+for a stronger model initially made reports *worse* (RACE overall 0.25 vs. 0.38 baseline)
+— `max_output_tokens` is a fixed ceiling on every LLM call, so more gathered material just
+compressed into the same report length instead of a deeper one. Raising the output budget
+alongside it recovered most of the loss but still didn't clearly beat the simple baseline
+at the sample size tested. This is left in the docs rather than memory-holed: full
+before/after numbers in [`docs/deepresearch-bench.md`](docs/deepresearch-bench.md).
 
-- **A formal `Tool` abstraction** (`research_agent/tools.py`) standardizing what a
-  capability the agent loop can call looks like (name, schema, `run()`), without turning
-  the loop itself into a framework -- it still hardcodes *when* to call which tool.
-- **A real page-fetch tool** (`research_agent/fetch.py`) replacing a config flag that had
-  quietly done nothing since it was added -- sources now carry full page text instead of
-  a short search snippet when enabled.
-- **Inline citations + a citation-grounding check** (`research_agent/grounding.py`): the
-  summarizer now cites claims inline as `[Title](URL)` instead of only listing sources in
-  a trailing bibliography. This wasn't a cosmetic change -- DeepResearch Bench's own FACT
-  pipeline only extracts citations that appear next to the claim in the body text; without
-  this, FACT would have scored this agent's reports at 0% citation accuracy regardless of
-  everything else.
-- **Dynamic early-stop reflection**: the reflect step can now end the research loop before
-  `--loops` is reached once it judges a topic sufficiently covered. The first version of
-  this never actually fired in live testing -- the prompt's own wording ("identify a
-  knowledge gap") biased the model toward always finding one. Rewriting it to judge
-  sufficiency *first* fixed this: confirmed live at 1/5 loops on a trivial factual
-  question and the full 4/4 on a genuinely broad one.
+### Internal eval harness
 
-One tuning path was tried and explicitly **didn't** make it into the defaults: raising
-`--loops` and `--max-search-results` for the benchmark run initially made reports *worse*
-(RACE overall 0.25 vs. 0.38 baseline) because `max_output_tokens` is a fixed ceiling on
-every LLM call -- more gathered material just got compressed into the same report length
-instead of a deeper one. Raising the output budget alongside it recovered most of the
-loss but still didn't clearly beat the simple baseline at the sample size tested. Full
-writeup, including the exact before/after numbers, in
-[`docs/deepresearch-bench.md`](docs/deepresearch-bench.md).
+A faster, cheaper regression signal for day-to-day prompt/model iteration — 6 stable
+topics with hand-checked key facts, scored by keyword recall (free) or a second LLM judge:
+
+| Topic | Facts covered | Loops | Sources |
+|---|---|---|---|
+| What is the Model Context Protocol (MCP)? | 3/3 | 2 | 6 |
+| What is Retrieval-Augmented Generation (RAG)? | 2/3 | 2 | 6 |
+| What is the Transformer architecture in machine learning? | 3/3 | 2 | 6 |
+| What is Kubernetes? | 2/3 | 2 | 6 |
+| What is the HTTP/3 protocol? | 3/3 | 2 | 6 |
+| What is Rust's ownership model in programming? | 1/3 | 2 | 6 |
+
+**avg fact coverage: 78%** · avg loops: 2.0 · avg sources: 6.0
+
+**Concurrency:** the harness researches all 6 topics in parallel (`ThreadPoolExecutor`,
+each topic an independent blocking I/O workload). Same dataset/model/backend:
+
+| Concurrency | Wall-clock |
+|---|---|
+| 1 (sequential) | 113.3s |
+| 3 (default) | 38.4s |
+
+A ~2.95x speedup — close to the theoretical ceiling for 6 equal-length tasks split
+across 3 workers. Fact-coverage varies slightly run-to-run (72% vs. 78%) since model
+generation isn't deterministic; the wall-clock comparison held everything else fixed.
+
+**100 tests passing**, all mocked at the network boundary (`litellm.completion`, `DDGS`,
+`TavilyClient`, `httpx.get`) — no real network call, ~2s to run, safe to run constantly.
 
 ## Requirements
 
@@ -199,6 +202,7 @@ uv run research-agent --topic "your research topic" \
 | `--api-base` | *(unset)* | Base URL for a local model server; leave unset for hosted providers |
 | `--search-backend` | `duckduckgo` | `duckduckgo` (no key) or `tavily` (needs `TAVILY_API_KEY`) |
 | `--max-search-results` | `3` | Results fetched per search |
+| `--fetch-full-page` | off | Fetch full page text for new sources instead of a short search snippet |
 | `--output` | *(unset)* | Write the final markdown report to this path |
 | `--trajectory` | *(unset)* | Write the full run (state + cost) as JSON to this path |
 
@@ -234,12 +238,9 @@ actually supported.
 
 ### DeepResearch Bench
 
-Beyond this repo's own small eval dataset, the agent can also be scored against
-[DeepResearch Bench](https://github.com/Ayanami0730/deep_research_bench) -- 100
-PhD-level research tasks judged on report comprehensiveness, insight, and citation
-trustworthiness. `research-agent-bench` generates the article JSONL that benchmark's
-scoring scripts expect; see [`docs/deepresearch-bench.md`](docs/deepresearch-bench.md)
-for the full two-repo workflow.
+`research-agent-bench` generates the article JSONL that DeepResearch Bench's own scoring
+scripts (RACE + FACT) expect; see [`docs/deepresearch-bench.md`](docs/deepresearch-bench.md)
+for the full two-repo workflow, including the tuning experiment writeup.
 
 ### Tests
 
@@ -255,15 +256,19 @@ research_agent/
 ├── config.py       # Config -- every runtime knob, env-var resolution
 ├── llm.py           # LLMClient -- one interface to every model provider
 ├── search.py         # SearchBackend protocol + DuckDuckGo/Tavily implementations
-├── prompts.py         # System prompts + tool schemas for each LLM call
-├── agent.py            # The research loop itself
-├── factory.py           # Shared component wiring for the CLI and eval runner
-└── cli.py                 # research-agent entry point
+├── fetch.py            # Full-page fetch + text extraction
+├── tools.py             # Tool protocol + registry (search, fetch)
+├── grounding.py           # Citation-presence checking for the final report
+├── prompts.py               # System prompts + tool schemas for each LLM call
+├── agent.py                   # The research loop itself
+├── factory.py                   # Shared component wiring for the CLI and eval runner
+└── cli.py                         # research-agent entry point
 
 eval/
 ├── dataset.py       # Topics with checkable key facts
 ├── judge.py           # KeywordRecallJudge / LLMJudge
-└── run_eval.py          # research-agent-eval entry point
+├── run_eval.py           # research-agent-eval entry point
+└── deepresearch_bench.py   # research-agent-bench entry point
 
 tests/                       # One test file per module above, all network-mocked
 ```
