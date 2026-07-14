@@ -58,3 +58,39 @@ body {
 .animate-fade-in-up {
   animation: fade-in-up 0.4s ease-out both;
 }
+
+/* Ambient gradient-mesh blobs behind the whole app -- slow, large-radius drift so
+   it reads as depth rather than a distracting animation. Three staggered
+   durations/delays keep the motion from ever looking like it's looping. */
+@keyframes drift-a {
+  0%, 100% { transform: translate(-8%, -6%) scale(1); }
+  50% { transform: translate(6%, 8%) scale(1.15); }
+}
+@keyframes drift-b {
+  0%, 100% { transform: translate(10%, 4%) scale(1.1); }
+  50% { transform: translate(-6%, -10%) scale(1); }
+}
+@keyframes drift-c {
+  0%, 100% { transform: translate(-4%, 10%) scale(1); }
+  50% { transform: translate(8%, -4%) scale(1.2); }
+}
+.animate-drift-a { animation: drift-a 26s ease-in-out infinite; }
+.animate-drift-b { animation: drift-b 32s ease-in-out infinite; }
+.animate-drift-c { animation: drift-c 38s ease-in-out infinite; }
+
+/* Frosted-glass surface: the shared building block for every card/panel in the
+   redesign. Opacity is tuned low enough that the ambient blobs read through it,
+   which is the entire point of choosing this over a flat card background. */
+.glass {
+  @apply border border-white/60 bg-white/50 shadow-[0_1px_0_0_rgba(255,255,255,0.6)_inset,0_8px_30px_-12px_rgba(24,16,60,0.15)] backdrop-blur-xl;
+  @apply dark:border-white/10 dark:bg-white/[0.06] dark:shadow-[0_1px_0_0_rgba(255,255,255,0.06)_inset,0_8px_30px_-12px_rgba(0,0,0,0.5)];
+}
+
+.glass-subtle {
+  @apply border border-white/50 bg-white/30 backdrop-blur-lg dark:border-white/10 dark:bg-white/[0.03];
+}
+
+.text-gradient {
+  @apply bg-gradient-to-r from-violet-600 via-fuchsia-500 to-cyan-500 bg-clip-text text-transparent;
+  @apply dark:from-violet-400 dark:via-fuchsia-400 dark:to-cyan-300;
+}

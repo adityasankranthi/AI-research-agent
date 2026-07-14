@@ -19,8 +19,9 @@ export function SourceCard({ source, index }: { source: SourceRef; index: number
       rel="noreferrer"
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
+      whileHover={{ y: -2 }}
       transition={{ duration: 0.35, delay: index * 0.05 }}
-      className="group flex items-start gap-2.5 rounded-lg border border-zinc-200 bg-white px-3 py-2.5 transition-colors hover:border-violet-300 hover:bg-violet-50/50 dark:border-white/10 dark:bg-white/[0.03] dark:hover:border-violet-400/30 dark:hover:bg-violet-500/[0.06]"
+      className="glass-subtle group flex items-start gap-2.5 rounded-xl px-3 py-2.5 transition-colors hover:border-violet-300/70 hover:bg-violet-50/40 dark:hover:border-violet-400/30 dark:hover:bg-violet-500/[0.08]"
     >
       <img
         src={`https://www.google.com/s2/favicons?domain=${domain}&sz=32`}

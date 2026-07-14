@@ -17,7 +17,7 @@ export function ResearchProgress({ currentQuery, iterations, loopsTotal }: Resea
 
   return (
     <div className="w-full space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="glass flex flex-wrap items-center justify-between gap-3 rounded-2xl px-4 py-3">
         <div className="flex items-center gap-2 font-mono text-sm text-zinc-500 dark:text-zinc-400">
           <Loader2 className="size-4 animate-spin text-violet-500" />
           <span>
@@ -31,12 +31,15 @@ export function ResearchProgress({ currentQuery, iterations, loopsTotal }: Resea
         {currentQuery && (
           <motion.div
             key={currentQuery}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
-            className="flex items-center gap-2 rounded-lg border border-violet-200 bg-violet-50/60 px-4 py-3 dark:border-violet-400/20 dark:bg-violet-500/[0.07]"
+            className="glass relative flex items-center gap-2.5 overflow-hidden rounded-2xl border-violet-300/50 px-4 py-3.5 dark:border-violet-400/25"
           >
-            <Search className="size-4 shrink-0 text-violet-500" />
+            <span className="relative flex size-4 shrink-0 items-center justify-center">
+              <span className="absolute inline-flex size-full animate-ping rounded-full bg-violet-400 opacity-60" />
+              <Search className="relative size-4 text-violet-500" />
+            </span>
             <p className="font-mono text-sm text-violet-800 italic dark:text-violet-300">
               Searching: {currentQuery}
             </p>

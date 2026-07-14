@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react"
+import { motion } from "framer-motion"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import { Check, Copy, Download, RotateCcw } from "lucide-react"
@@ -43,31 +44,33 @@ export function FinalReportView({ result, onReset }: { result: DoneEvent; onRese
         <div className="flex items-center gap-2">
           <button
             onClick={handleCopy}
-            className="inline-flex items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-50 dark:border-white/10 dark:bg-white/5 dark:text-zinc-300 dark:hover:bg-white/10"
+            className="glass-subtle inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-zinc-600 transition-colors hover:bg-white/60 dark:text-zinc-300 dark:hover:bg-white/10"
           >
             {copied ? <Check className="size-3.5 text-emerald-500" /> : <Copy className="size-3.5" />}
             {copied ? "Copied" : "Copy"}
           </button>
           <button
             onClick={handleDownload}
-            className="inline-flex items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-50 dark:border-white/10 dark:bg-white/5 dark:text-zinc-300 dark:hover:bg-white/10"
+            className="glass-subtle inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-zinc-600 transition-colors hover:bg-white/60 dark:text-zinc-300 dark:hover:bg-white/10"
           >
             <Download className="size-3.5" />
             Download
           </button>
-          <button
+          <motion.button
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.97 }}
             onClick={onReset}
-            className="inline-flex items-center gap-1.5 rounded-md bg-violet-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-violet-500"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-br from-violet-600 to-fuchsia-600 px-3 py-1.5 text-xs font-medium text-white shadow-md shadow-violet-500/30 transition-shadow hover:shadow-lg hover:shadow-violet-500/40"
           >
             <RotateCcw className="size-3.5" />
             New research
-          </button>
+          </motion.button>
         </div>
       </div>
 
       <GroundingCallout unverifiedClaims={unverifiedClaims} />
 
-      <article className="prose prose-zinc dark:prose-invert prose-sm sm:prose-base max-w-none rounded-xl border border-zinc-200 bg-white p-6 prose-a:text-violet-600 dark:border-white/10 dark:bg-white/[0.03] dark:prose-a:text-violet-400">
+      <article className="glass prose prose-zinc dark:prose-invert prose-sm sm:prose-base max-w-none rounded-2xl p-6 prose-a:text-violet-600 dark:prose-a:text-violet-400">
         <ReactMarkdown remarkPlugins={[remarkGfm]}>{body}</ReactMarkdown>
       </article>
     </div>
