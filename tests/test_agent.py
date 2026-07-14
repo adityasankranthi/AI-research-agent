@@ -82,6 +82,44 @@ def test_run_calls_on_iteration_with_query_used_for_that_loop_before_it_is_repla
     assert seen == [(0, "initial query"), (1, "followup query")]
 
 
+def test_run_calls_on_query_immediately_for_initial_and_followup_queries():
+    llm = _FakeLLM(
+        tool_responses=[
+            {"query": "initial query", "rationale": "r"},
+            {"knowledge_gap": "gap", "follow_up_query": "followup query"},
+        ],
+        chat_responses=["summary after loop 1", "summary after loop 2"],
+    )
+    tools = {"web_search": _FakeSearchTool(sources_per_call=[[], []])}
+    config = Config(max_loops=2)
+    seen: list[str] = []
+
+    run(topic="t", llm=llm, tools=tools, config=config, on_query=seen.append)
+
+    assert seen == ["initial query", "followup query"]
+
+
+def test_run_does_not_call_on_query_after_early_stop():
+    llm = _FakeLLM(
+        tool_responses=[
+            {"query": "initial query", "rationale": "r"},
+            {
+                "knowledge_gap": "none",
+                "follow_up_query": "would-be next query",
+                "research_complete": True,
+            },
+        ],
+        chat_responses=["summary after loop 1"],
+    )
+    tools = {"web_search": _FakeSearchTool(sources_per_call=[[], []])}
+    config = Config(max_loops=3, allow_early_stop=True)
+    seen: list[str] = []
+
+    run(topic="t", llm=llm, tools=tools, config=config, on_query=seen.append)
+
+    assert seen == ["initial query"]
+
+
 def test_run_single_loop_never_calls_reflect():
     llm = _FakeLLM(
         tool_responses=[{"query": "only query", "rationale": "r"}],

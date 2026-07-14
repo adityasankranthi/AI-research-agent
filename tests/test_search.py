@@ -147,6 +147,19 @@ def test_get_search_backend_returns_tavily(monkeypatch):
     assert isinstance(get_search_backend("tavily"), TavilyBackend)
 
 
+def test_get_search_backend_passes_api_key_to_tavily(monkeypatch):
+    captured = {}
+
+    def fake_tavily_client(api_key=None):
+        captured["api_key"] = api_key
+        return _FakeTavilyClient([])
+
+    monkeypatch.setattr("research_agent.search.TavilyClient", fake_tavily_client)
+    get_search_backend("tavily", api_key="tvly-test")
+
+    assert captured["api_key"] == "tvly-test"
+
+
 def test_get_search_backend_raises_for_unknown_name():
     with pytest.raises(ValueError):
         get_search_backend("bing")

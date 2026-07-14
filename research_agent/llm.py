@@ -52,6 +52,10 @@ class LLMClient:
 
     model: str
     api_base: Optional[str] = None
+    # Passed explicitly to litellm rather than relying on process-global provider env
+    # vars (OPENAI_API_KEY, etc.) -- lets a multi-tenant caller (the API server) scope
+    # a visitor-supplied key to one request instead of mutating shared process state.
+    api_key: Optional[str] = None
     timeout: float = 60.0
     # Explicit and modest on purpose: some hosted gateways pre-check whether the
     # account can afford `max_tokens` output tokens at the model's worst case before
@@ -78,6 +82,7 @@ class LLMClient:
             model=self.model,
             messages=messages,
             api_base=self.api_base,
+            api_key=self.api_key,
             timeout=self.timeout,
             max_tokens=self.max_tokens,
         )
@@ -101,6 +106,7 @@ class LLMClient:
             messages=messages,
             tools=[tool],
             api_base=self.api_base,
+            api_key=self.api_key,
             timeout=self.timeout,
             max_tokens=self.max_tokens,
             # litellm's completion() otherwise imports its MCP-handler code path

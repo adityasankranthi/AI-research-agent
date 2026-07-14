@@ -72,9 +72,9 @@ class TavilyBackend:
         return sources
 
 
-def get_search_backend(name: str) -> SearchBackend:
+def get_search_backend(name: str, api_key: Optional[str] = None) -> SearchBackend:
     if name == "tavily":
-        return TavilyBackend()
+        return TavilyBackend(api_key=api_key)
     if name == "duckduckgo":
         return DuckDuckGoBackend()
     raise ValueError(f"Unknown search backend: {name!r} (expected 'duckduckgo' or 'tavily')")

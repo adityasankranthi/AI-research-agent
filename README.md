@@ -171,6 +171,7 @@ generation isn't deterministic; the wall-clock comparison held everything else f
   provider (OpenAI, Anthropic, OpenRouter, ...)
 - Optionally, a free [Tavily](https://tavily.com) API key for the more reliable search
   backend
+- Optionally, [Node.js](https://nodejs.org) ≥ 20 if you want to build/run the [web UI](#web-ui)
 
 ## Install
 
@@ -248,6 +249,69 @@ for the full two-repo workflow, including the tuning experiment writeup.
 uv run pytest -v
 ```
 
+## Web UI
+
+A browser UI wraps the same agent: type a topic, watch sources stream in loop by loop,
+and get a rendered, cited report with the citation-grounding check surfaced as a
+first-class result — not just a footer. It's a thin FastAPI layer
+(`api/`) over `research_agent`'s existing `agent.run()`, streaming progress via
+Server-Sent Events, plus a React + Vite + Tailwind frontend (`web/`).
+
+**Bring-your-own-key.** The UI is built to be safely deployable as a public demo:
+visitors paste their own model-provider key (and Tavily key, if using that search
+backend) into the browser. Keys are stored only in `localStorage`, sent directly with
+each research request, and passed straight through to `litellm`/`TavilyClient` for that
+one call — never written to a server-side env var, log, or file. Running it just for
+yourself locally works the same way; there's no separate "local mode."
+
+### Local development
+
+Run the API and the frontend dev server side by side — Vite proxies `/api` to FastAPI,
+so the frontend always calls a relative path in both dev and production:
+
+```bash
+# Terminal 1 -- API on :8000
+uv run uvicorn api.main:app --reload --port 8000
+
+# Terminal 2 -- frontend on :5173
+cd web
+npm install
+npm run dev
+```
+
+Open `http://localhost:5173`, add a provider key in Settings, and research something.
+
+### Production build
+
+FastAPI serves the built frontend directly, so a deployment is a single process on a
+single port — no separate static host to coordinate:
+
+```bash
+cd web && npm ci && npm run build   # -> web/dist/
+cd ..
+uv sync                              # now installs fastapi/uvicorn too
+uv run uvicorn api.main:app --host 0.0.0.0 --port 8000
+```
+
+### Docker
+
+```bash
+docker build -t research-agent .
+docker run -p 8000:8000 research-agent
+```
+
+Multi-stage: `node:20-slim` builds `web/dist`, `python:3.12-slim` installs
+`research_agent`/`api` via `uv sync --frozen --no-dev` and serves both the API and the
+built SPA from one `uvicorn` process. Deploy the image anywhere that runs a container
+(Fly.io, Render, Railway, a bare VPS behind a reverse proxy). The one thing every
+deploy target needs to get right: **don't let a reverse proxy buffer the SSE
+response** (`X-Accel-Buffering: no` is already set on the API side; a raw Nginx front
+additionally needs `proxy_buffering off` on that route), or progress will arrive in one
+batch at the end instead of streaming live.
+
+Because it's bring-your-own-key, the deployment itself needs no provider API keys —
+`.env` stays relevant only for the CLI/eval tooling above.
+
 ## Project structure
 
 ```
@@ -269,6 +333,18 @@ eval/
 ├── judge.py           # KeywordRecallJudge / LLMJudge
 ├── run_eval.py           # research-agent-eval entry point
 └── deepresearch_bench.py   # research-agent-bench entry point
+
+api/                           # FastAPI layer for the web UI (see "Web UI" above)
+├── schemas.py       # ResearchRequest -- BYOK keys as SecretStr, capped loops/results
+├── stream.py          # Runs agent.run() on a thread, bridges on_iteration/on_query to SSE
+├── routes.py            # POST /api/research
+└── main.py                # App factory: CORS, static SPA mount, thread-pool sizing
+
+web/                            # React + Vite + Tailwind frontend
+├── src/lib/            # SSE client, localStorage settings/history, event types
+├── src/context/          # Settings + theme, persisted to localStorage
+├── src/hooks/               # useResearchStream -- owns the active run's SSE lifecycle
+└── src/components/             # TopicForm, SettingsDrawer, ResearchProgress, FinalReportView, ...
 
 tests/                       # One test file per module above, all network-mocked
 ```

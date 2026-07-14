@@ -180,6 +180,7 @@ def run(
     tools: dict[str, Tool],
     config: Config,
     on_iteration: Optional[Callable[[int, ResearchState], None]] = None,
+    on_query: Optional[Callable[[str], None]] = None,
 ) -> ResearchState:
     """The agent's control flow: an explicit loop, not a graph or state-machine
     framework.
@@ -201,6 +202,12 @@ def run(
     (the CLI uses it to print per-iteration progress) to observe what's happening
     without any framework-level visualization tooling.
 
+    `on_query`, if given, is called with the query as soon as it's decided --
+    right after the initial `generate_query()`, and again after each `reflect()`
+    picks the next loop's query -- so a caller wanting to show "Searching: ..."
+    isn't stuck waiting out an entire search+summarize round-trip for the first
+    signal `on_iteration` would otherwise give it.
+
     Robustness: structured-output calls (query/reflection) and the summarizer retry
     up to `config.max_structured_output_retries` times against malformed model
     output before falling back (query/reflection) or raising (summarizer -- see
@@ -212,6 +219,8 @@ def run(
     retries = config.max_structured_output_retries
     state = ResearchState(topic=topic)
     state.search_query = generate_query(llm, state, max_retries=retries)
+    if on_query:
+        on_query(state.search_query)
 
     for i in range(config.max_loops):
         new_sources = web_research(tools, state.search_query)
@@ -231,5 +240,7 @@ def run(
             if config.allow_early_stop and reflection.research_complete:
                 break
             state.search_query = reflection.follow_up_query
+            if on_query:
+                on_query(state.search_query)
 
     return finalize(state, enable_grounding_check=config.enable_citation_grounding_check)

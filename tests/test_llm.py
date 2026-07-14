@@ -105,6 +105,43 @@ def test_chat_forwards_provider_prefixed_model_string_and_no_api_base(monkeypatc
     assert captured["api_base"] is None
 
 
+def test_chat_forwards_api_key_to_litellm(monkeypatch):
+    response = _fake_response(content="ok")
+    captured = {}
+
+    def fake_completion(**kwargs):
+        captured.update(kwargs)
+        return response
+
+    monkeypatch.setattr("research_agent.llm.litellm.completion", fake_completion)
+    monkeypatch.setattr("research_agent.llm.litellm.completion_cost", lambda response: 0.0)
+
+    client = LLMClient(model="test/model", api_key="sk-test")
+    client.chat([{"role": "user", "content": "hi"}])
+
+    assert captured["api_key"] == "sk-test"
+
+
+def test_chat_with_tool_forwards_api_key_to_litellm(monkeypatch):
+    tool_call = SimpleNamespace(
+        function=SimpleNamespace(name="search_query", arguments=json.dumps({"query": "x"}))
+    )
+    response = _fake_response(tool_calls=[tool_call])
+    captured = {}
+
+    def fake_completion(**kwargs):
+        captured.update(kwargs)
+        return response
+
+    monkeypatch.setattr("research_agent.llm.litellm.completion", fake_completion)
+    monkeypatch.setattr("research_agent.llm.litellm.completion_cost", lambda response: 0.0)
+
+    client = LLMClient(model="test/model", api_key="sk-test")
+    client.chat_with_tool([], tool={"type": "function", "function": {"name": "search_query"}})
+
+    assert captured["api_key"] == "sk-test"
+
+
 def test_cost_accumulates_across_calls(monkeypatch):
     response = _fake_response(content="ok")
     monkeypatch.setattr("research_agent.llm.litellm.completion", lambda **kwargs: response)
