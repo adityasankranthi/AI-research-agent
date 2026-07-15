@@ -10,6 +10,12 @@ This repo doesn't vendor DeepResearch Bench -- it's a separate checkout you clon
 yourself. `eval/deepresearch_bench.py` (installed as `research-agent-bench`) only
 generates the article JSONL that checkout's own scoring scripts expect.
 
+The adapter uses `Config.research_mode="deep"`: it plans task requirements, retains
+evidence independently of report prose, searches a portfolio of uncovered requirements,
+audits evidence, and writes the report once. The 35.50 RACE / 91.1% FACT numbers in the
+README are the preserved pre-planner baseline; do not compare a new run to them without
+recording model, loop, search, and output-token settings.
+
 ## 1. Clone and set up DeepResearch Bench
 
 ```bash
@@ -49,6 +55,11 @@ uv run research-agent-bench \
   --model openrouter/anthropic/claude-haiku-4-5 \
   --search-backend tavily
 ```
+
+The deep adapter currently defaults to a 6-loop safety cap, two targeted queries per
+loop, up to eight plan items, two independent source URLs per supported item, a 6,144
+token report budget, and one bounded revision pass. Treat these as the first planner
+baseline, not proven optimal settings; use the CLI flags to run controlled ablations.
 
 Each task logs a diagnostic citation-grounding ratio (`grounded=N/M`) as it completes --
 sourced from the same `research_agent/grounding.py` check the agent itself uses, just

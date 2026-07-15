@@ -1,4 +1,4 @@
-from research_agent.state import ResearchState, Source
+from research_agent.state import EvidenceItem, ResearchState, Source
 
 
 def test_add_sources_accumulates_across_loops():
@@ -17,3 +17,12 @@ def test_sources_default_factory_is_isolated_per_instance():
     first.add_sources([Source(title="A", url="http://a.com", content="a")])
 
     assert second.sources == []
+
+
+def test_add_evidence_deduplicates_claim_and_url():
+    state = ResearchState(topic="t")
+    item = EvidenceItem("Claim", "S", "https://s", "excerpt", "plan")
+
+    state.add_evidence([item, item])
+
+    assert state.evidence == [item]

@@ -216,6 +216,11 @@ def run(
     rather than asking the model to summarize an empty context, which risks it
     inventing content to fill the gap.
     """
+    if config.research_mode == "deep":
+        from research_agent.deep_research import run_deep_research
+
+        return run_deep_research(topic, llm, tools, config, on_iteration, on_query)
+
     retries = config.max_structured_output_retries
     state = ResearchState(topic=topic)
     state.search_query = generate_query(llm, state, max_retries=retries)

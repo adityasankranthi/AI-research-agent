@@ -87,7 +87,7 @@ def main(
         help="Strongly recommend tavily at 100-task scale -- duckduckgo rate-limits.",
     ),
     loops: int = typer.Option(
-        4,
+        6,
         "--loops",
         help=(
             "A cap, not a target -- Config.allow_early_stop (on by default) lets reflect() "
@@ -101,7 +101,7 @@ def main(
     ),
     max_search_results: int = typer.Option(5, "--max-search-results"),
     max_output_tokens: int = typer.Option(
-        2048,
+        6144,
         "--max-output-tokens",
         help=(
             "This cap applies to every LLM response including the final summary, so "
@@ -112,6 +112,14 @@ def main(
     ),
     fetch_full_page: bool = typer.Option(
         True, "--fetch-full-page/--no-fetch-full-page", help="Fetch full page text for new sources."
+    ),
+    max_plan_items: int = typer.Option(8, "--max-plan-items"),
+    queries_per_loop: int = typer.Option(2, "--queries-per-loop"),
+    min_evidence_per_item: int = typer.Option(2, "--min-evidence-per-item"),
+    final_revision: bool = typer.Option(
+        True,
+        "--final-revision/--no-final-revision",
+        help="Allow one evidence-constrained reviewer-directed rewrite.",
     ),
     concurrency: int = typer.Option(3, "--concurrency"),
     language: str = typer.Option(
@@ -142,6 +150,11 @@ def main(
         max_output_tokens=max_output_tokens,
         fetch_full_page=fetch_full_page,
         enable_citation_grounding_check=False,
+        research_mode="deep",
+        max_plan_items=max_plan_items,
+        deep_queries_per_loop=queries_per_loop,
+        min_evidence_per_plan_item=min_evidence_per_item,
+        enable_final_revision=final_revision,
     )
 
     start = time.monotonic()

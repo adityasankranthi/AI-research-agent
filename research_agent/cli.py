@@ -24,6 +24,34 @@ def _trajectory(state: ResearchState, cost: float, n_calls: int) -> dict[str, An
         "loop_count": state.loop_count,
         "sources": [{"title": s.title, "url": s.url} for s in state.sources],
         "running_summary": state.running_summary,
+        "plan": (
+            {
+                "title": state.plan.title,
+                "items": [
+                    {
+                        "id": item.id,
+                        "question": item.question,
+                        "section": item.section,
+                        "evidence_requirements": item.evidence_requirements,
+                        "status": item.status,
+                    }
+                    for item in state.plan.items
+                ],
+            }
+            if state.plan
+            else None
+        ),
+        "evidence": [
+            {
+                "claim": item.claim,
+                "source_title": item.source_title,
+                "source_url": item.source_url,
+                "excerpt": item.excerpt,
+                "plan_item_id": item.plan_item_id,
+                "confidence": item.confidence,
+            }
+            for item in state.evidence
+        ],
         "llm_cost": cost,
         "llm_calls": n_calls,
     }
@@ -58,6 +86,11 @@ def main(
             "env vars to cap how many pages get fetched per loop)."
         ),
     ),
+    research_mode: str = typer.Option(
+        "iterative",
+        "--research-mode",
+        help="'iterative' for the cheap summarize/reflect loop; 'deep' for plan/evidence/report.",
+    ),
     output: Optional[Path] = typer.Option(None, "--output", help="Write the final markdown report here."),
     trajectory: Optional[Path] = typer.Option(
         None, "--trajectory", help="Write the full run (state + cost) as JSON here."
@@ -70,6 +103,7 @@ def main(
         max_loops=loops,
         max_search_results=max_search_results,
         fetch_full_page=fetch_full_page,
+        research_mode=research_mode,
     )
     llm, tools = build_components(config)
 

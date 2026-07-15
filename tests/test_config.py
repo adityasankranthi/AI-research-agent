@@ -65,3 +65,10 @@ def test_fetch_max_chars_env_var_coerces_to_int(monkeypatch):
     monkeypatch.setenv("RESEARCH_AGENT_FETCH_MAX_CHARS", "8000")
     config = Config.from_env()
     assert config.fetch_max_chars == 8000
+
+
+def test_rejects_unknown_research_mode():
+    import pytest
+
+    with pytest.raises(ValueError, match="research_mode"):
+        Config(research_mode="unknown")

@@ -114,7 +114,7 @@ The harness researches all 6 topics concurrently (`ThreadPoolExecutor`) — a ~2
 speedup at concurrency 3 vs. sequential (38.4s vs. 113.3s), close to the theoretical
 ceiling for 6 equal-length tasks split across 3 workers.
 
-**100 tests passing**, all mocked at the network boundary — no real network call, ~2s to
+**121 tests passing**, all mocked at the network boundary — no real network call, ~2s to
 run, safe to run constantly.
 
 </details>
@@ -152,6 +152,11 @@ access external tools, systems, and data sources...
 - **Defensive, hardened by live testing.** Bounded retries with corrective feedback on
   malformed output, a fail-loud path when a summary can't be produced, a skip path when
   a search returns nothing.
+- **Two explicit research modes.** `iterative` is the original cheap summarize/reflect
+  loop. `deep` decomposes the request into a coverage plan, searches multiple gaps per
+  round, retains atomic source-grounded evidence, audits it, writes the report once, and
+  performs at most one reviewer-directed revision. The modes share the same tools and
+  provider interface, so they can be benchmarked directly rather than conflated.
 - **Quantitative evaluation, not vibes.** A small internal dataset for fast iteration,
   and DeepResearch Bench for an external, adversarial check.
 
@@ -175,7 +180,8 @@ uv run research-agent --topic "your research topic" --model ollama/qwen2.5:7b
 
 # Hosted model, real search backend
 uv run research-agent --topic "your research topic" \
-  --model openrouter/anthropic/claude-haiku-4-5 --search-backend tavily
+  --model openrouter/anthropic/claude-haiku-4-5 --search-backend tavily \
+  --research-mode deep --fetch-full-page
 ```
 
 | Flag | Default | Description |
@@ -187,6 +193,7 @@ uv run research-agent --topic "your research topic" \
 | `--search-backend` | `duckduckgo` | `duckduckgo` (no key) or `tavily` (needs `TAVILY_API_KEY`) |
 | `--max-search-results` | `3` | Results fetched per search |
 | `--fetch-full-page` | off | Fetch full page text instead of a short search snippet |
+| `--research-mode` | `iterative` | `iterative` (cheap loop) or `deep` (plan/evidence/audit/report) |
 | `--output` | *(unset)* | Write the final markdown report to this path |
 | `--trajectory` | *(unset)* | Write the full run (state + cost) as JSON to this path |
 
@@ -226,7 +233,9 @@ a different one than `--model`) whether each fact is actually supported.
 
 `research-agent-bench` generates the article JSONL that DeepResearch Bench's own scoring
 scripts (RACE + FACT) expect; see [`docs/deepresearch-bench.md`](docs/deepresearch-bench.md)
-for the full two-repo workflow, including the tuning experiment writeup.
+for the full two-repo workflow. The adapter now selects the new `deep` pipeline. The
+published 35.50 RACE / 91.1% FACT result above remains the measured pre-planner baseline
+until a new full benchmark run is completed; it is not relabeled after the implementation.
 
 ### Tests
 
@@ -297,7 +306,10 @@ Because it's bring-your-own-key, the deployment itself needs no provider API key
 
 ```
 research_agent/
-├── state.py       # ResearchState, Source -- the data the loop reads and writes
+├── state.py       # State, plan items, evidence, and sources
+├── deep_research.py # Plan -> coverage-driven retrieval -> evidence -> audited report
+├── deep_prompts.py  # Structured schemas for planner, extractor, auditor, and reviewer
+├── source_quality.py # Deterministic source authority/relevance ranking
 ├── config.py       # Config -- every runtime knob, env-var resolution
 ├── llm.py           # LLMClient -- one interface to every model provider
 ├── search.py         # SearchBackend protocol + DuckDuckGo/Tavily implementations

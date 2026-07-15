@@ -65,8 +65,23 @@ class Config:
     # already sufficiently addresses the topic. A killswitch for cases needing a
     # reproducible, fixed loop count (e.g. comparing runs in the eval harness).
     allow_early_stop: bool = True
+    # "iterative" preserves the cheap summarize/reflect loop. "deep" first builds
+    # a coverage plan, retains atomic evidence, and writes the report once at the end.
+    research_mode: str = "iterative"
+    min_evidence_per_plan_item: int = 2
+    max_plan_items: int = 8
+    deep_queries_per_loop: int = 2
+    enable_final_revision: bool = True
 
     def __post_init__(self) -> None:
+        if self.research_mode not in {"iterative", "deep"}:
+            raise ValueError("research_mode must be 'iterative' or 'deep'")
+        if self.min_evidence_per_plan_item < 1:
+            raise ValueError("min_evidence_per_plan_item must be at least 1")
+        if self.max_plan_items < 1:
+            raise ValueError("max_plan_items must be at least 1")
+        if self.deep_queries_per_loop < 1:
+            raise ValueError("deep_queries_per_loop must be at least 1")
         # Only Ollama needs a local base URL by default -- hosted providers (and
         # self-hosted OpenAI-compatible servers, via an explicit --api-base) resolve
         # their own endpoint from the model string itself.

@@ -31,7 +31,10 @@ def test_writes_expected_jsonl_shape(tmp_path, monkeypatch):
     )
     output_file = tmp_path / "model.jsonl"
 
+    modes = []
+
     def fake_run(topic, llm, tools, config, on_iteration=None):
+        modes.append(config.research_mode)
         state = ResearchState(topic=topic, running_summary=f"summary for {topic}")
         state.add_sources([Source(title="S", url="http://s.com", content="c")])
         return state
@@ -55,6 +58,7 @@ def test_writes_expected_jsonl_shape(tmp_path, monkeypatch):
         {"id": 1, "prompt": "prompt one", "article": "summary for prompt one"},
         {"id": 2, "prompt": "prompt two", "article": "summary for prompt two"},
     ]
+    assert modes == ["deep", "deep"]
 
 
 def test_limit_and_language_filter_queries(tmp_path, monkeypatch):
