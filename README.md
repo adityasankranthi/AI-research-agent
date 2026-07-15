@@ -1,32 +1,109 @@
-# research-agent
+# Evidence-First AI Research Agent
 
-An evidence-first web-research agent that plans what to investigate, searches for
-independent support, retains atomic evidence, and writes a cited report only after its
-coverage has been audited.
+[![CI](https://github.com/adityasankranthi/AI-research-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/adityasankranthi/AI-research-agent/actions/workflows/ci.yml)
+![Paired RACE gain](https://img.shields.io/badge/paired_RACE_gain-%2B15.7%25-2ea44f)
+![FACT citation accuracy](https://img.shields.io/badge/FACT_citation_accuracy-91.1%25-0969da)
+[![Live DeepResearch Bench](https://img.shields.io/badge/DeepResearch_Bench-live_leaderboard-FFD21E)](https://huggingface.co/spaces/muset-ai/DeepResearch-Bench-Leaderboard)
 
-It is deliberately built without an orchestration framework: the planner, research
-loop, evidence store, stopping rules, reviewer, and citation checks are plain Python and
-measured against a real external benchmark.
+An AI web-research agent that plans what to investigate, searches for independent
+support, preserves claims as atomic evidence, audits coverage, and writes a cited report
+only when the evidence is ready.
+
+This project was built from scratch in plain Python—without an agent orchestration
+framework—and improved through measured experiments on
+[DeepResearch Bench](https://github.com/Ayanami0730/deep_research_bench), a real external
+benchmark of PhD-level research tasks.
+
+The agent can:
+
+- turn an open-ended question into a coverage plan;
+- generate targeted search portfolios instead of one generic query;
+- rank, fetch, deduplicate, and retain evidence from multiple sources;
+- enforce minimum evidence breadth before broad research can stop;
+- synthesize the report once, after research, to avoid summary-of-summary information loss;
+- repair or remove citations that fail deterministic compliance checks; and
+- run with hosted AI models or locally through Ollama.
 
 ## Results
 
-| Experiment | Scope | Result |
+The central result is an engineering result: **changing the agent architecture improved
+quality more reliably than changing to a larger model.**
+
+| Experiment | Evaluation scope | Measured result |
 |---|---:|---:|
-| Citation-precision baseline | 50 English DeepResearch Bench tasks | **91.1% FACT citation accuracy** |
-| Evidence-first architecture | Fixed 12-task paired development set | **37.29 → 43.15 RACE** |
-| Breadth-aware research | Official task-56 RACE evaluation | **47.53 → 49.57 RACE** |
+| Citation-precision baseline | 50 English benchmark tasks | **91.1% FACT citation accuracy** |
+| Evidence-first architecture | Fixed 12-task paired set | **37.29 → 43.15 RACE** |
+| Broad-question stopping rule | Official task-56 evaluation | **45.74 → 49.57 RACE** |
 | Breadth-aware citation validation | Official task-56 FACT evaluation | **100% accuracy, 18 effective citations** |
+| Automated regression suite | Mocked model, search, fetch, and API boundaries | **127 tests passing** |
 
-The central result is not that a larger model solved the problem. Every run above used
-`openrouter/anthropic/claude-haiku-4-5` with Tavily. Changing the research architecture
-raised RACE by **5.86 points / 15.7%** on the fixed development set, while deterministic
-citation controls preserved high precision.
+On the fixed development set, planning, atomic evidence, and write-once synthesis raised
+RACE by **5.86 points / 15.7%** with the same
+`openrouter/anthropic/claude-haiku-4-5` model and Tavily search backend.
 
-### 1. Planning and atomic evidence raised report quality
+### How this compares with the live leaderboard
 
-The same 12 DeepResearch Bench prompts (IDs 51–62), model, search backend, and official
-RACE judge were used before and after replacing the iterative summary-rewrite loop with
-the evidence-first pipeline.
+[Open the live DeepResearch Bench leaderboard →](https://huggingface.co/spaces/muset-ai/DeepResearch-Bench-Leaderboard)
+
+*Comparison checked 15 July 2026 against leaderboard data updated 28 June 2026.*
+
+DeepResearch Bench now maintains a new GPT-5.5-evaluated leaderboard and a legacy
+Gemini-2.5-evaluated leaderboard. This project's saved results were produced with the
+legacy evaluator, so only the legacy score band is relevant—and a development subset
+cannot be treated as an official full-benchmark rank.
+
+| Comparison | RACE | What can be concluded |
+|---|---:|---|
+| Current legacy leaderboard top-10 cutoff | **56.23** | Full leaderboard result |
+| Current legacy rank 26 | **49.71** | Full leaderboard result |
+| **This agent: strongest task-56 run** | **49.57** | Numerically between legacy ranks 26 and 27; single-task score only |
+| Current legacy rank 27 | **49.33** | Full leaderboard result |
+| **This agent: paired development average** | **43.15** | 12-task engineering result; not rank-eligible |
+
+The strongest task result is **6.66 RACE points below the current legacy top-10 cutoff**
+and sits inside the score band of published deep-research systems. That is encouraging
+evidence, not a claimed rank: an official position requires a full submission evaluated
+under one consistent judge version.
+
+Citation precision is the standout result at larger scale. In the public leaderboard
+snapshot used during the experiment, this agent's **91.1% FACT citation accuracy** was
+higher than every reported result; the next highest was 87.3%. Because our run contains
+the 50 English tasks rather than the complete bilingual suite, this remains a precision
+comparison—not an official leaderboard placement.
+
+> **Scope, stated plainly:** 35.50 RACE / 91.1% FACT is a 50-English-task pre-planner
+> baseline; 43.15 is a paired 12-task development result; and 49.57 RACE / 100% FACT is
+> a single-task ablation. The raw artifacts are committed for inspection, but none is
+> presented as a full leaderboard submission.
+
+### A bigger model did not produce the improvement
+
+Before redesigning the pipeline, a three-task ablation tested Claude Sonnet with much
+larger retrieval limits. It did not beat the simpler Haiku configuration.
+
+| Configuration | Model | Loop cap | Results/query | Output budget | RACE (0–1) |
+|---|---|---:|---:|---:|---:|
+| Default | Claude Haiku 4.5 | 4 | 5 | 2,048 | **0.38** |
+| More model + more retrieval | Claude Sonnet 5 | 12 | 8 | 2,048 | 0.25 |
+| More model + matched output budget | Claude Sonnet 5 | 12 | 8 | 6,144 | 0.37 |
+
+The first Sonnet run gathered far more material but compressed it into the same
+2,048-token report ceiling. Its reports became shorter—305–833 words versus 945–1,230
+for the default—and RACE fell. Raising the report budget recovered the loss, but still
+did not establish a win over Haiku.
+
+This was only an n=3 ablation, so it does not prove that smaller models are generally
+better. It proves something more useful for this project: **model scale cannot compensate
+for a mismatched research and synthesis pipeline.** The repeatable 12-task improvement
+came from architecture while the model stayed fixed.
+
+## How we improved report quality
+
+### 1. Planning and atomic evidence improved every RACE dimension
+
+The same 12 prompts (DeepResearch Bench IDs 51–62), model, search backend, and official
+judge were used before and after replacing the iterative summary-rewrite loop with the
+evidence-first pipeline.
 
 | RACE dimension | Iterative pipeline | Evidence-first pipeline | Gain |
 |---|---:|---:|---:|
@@ -36,16 +113,17 @@ the evidence-first pipeline.
 | Readability | 38.40 | **45.47** | +7.07 |
 | **Overall** | **37.29** | **43.15** | **+5.86** |
 
-The pipeline improved every judged dimension. The largest gain was readability, despite
-the new reports retaining more evidence, because the agent now synthesizes once at the
-end instead of repeatedly compressing summaries of summaries.
+The agent now stores source-backed claims rather than repeatedly rewriting a running
+summary. It audits the evidence and synthesizes once at the end. The largest gain was
+readability—even though the final reports retained more evidence—because useful detail
+was no longer degraded through repeated compression.
 
 ### 2. Minimum evidence breadth fixed premature stopping
 
 Task 56 asks for a general method for solving asymmetric first-price auctions. The first
-deep version treated one supported plan item as complete and stopped after one loop. The
-breadth-aware version classified the question as broad and required at least two loops,
-five retained evidence URLs, and three source domains before allowing an early stop.
+deep version considered one supported plan item sufficient and stopped after one loop.
+The revised agent classified the question as broad and required at least two loops, five
+retained evidence URLs, and three source domains before early stopping was allowed.
 
 | Task-56 metric | Citation-compliant one-loop run | Breadth-aware run |
 |---|---:|---:|
@@ -60,13 +138,12 @@ five retained evidence URLs, and three source domains before allowing an early s
 
 The breadth-aware report also beat the original deep task-56 score of 47.53. Official
 FACT extracted 21 citation instances across 11 URLs: all **18 evaluable citations were
-supported**, while three were marked unknown and excluded by the benchmark. That yields
-**100% citation accuracy and 18.0 effective citations** for this task.
+supported**, while three were marked unknown and excluded by the benchmark. The result
+was **100% citation accuracy and 18.0 effective citations**.
 
-### 3. Citation precision was already strong at 50-task scale
+### 3. Citation precision was strong before report depth was strong
 
-Before the planner existed, the original iterative pipeline completed all 50 English
-DeepResearch Bench tasks with:
+The original iterative AI agent completed all 50 English tasks with:
 
 | Metric | Result |
 |---|---:|
@@ -75,23 +152,13 @@ DeepResearch Bench tasks with:
 | Effective citations per report | 16.38 |
 | **FACT citation accuracy** | **91.1%** |
 
-That run established the project's precision baseline, but its low RACE score also made
-the limitation clear: trustworthy citations do not automatically produce a complete,
-insightful report. The new architecture targets that missing depth. The 50-task score is
-kept labeled as a **pre-planner baseline** until the current pipeline completes a new
-full run.
+That result exposed the real bottleneck. The agent could cite accurately, but accurate
+citations alone did not guarantee comprehensive, insightful research. The new planner,
+evidence store, coverage audit, breadth rules, and final citation postcondition were
+built to improve the missing depth without giving up precision.
 
-In the public-leaderboard snapshot recorded for this experiment, **91.1% was higher than
-every reported FACT citation-accuracy result; the next highest was 87.3%**. Because the
-project run covers 50 English tasks rather than the full bilingual set, this is presented
-as a precision comparison—not a new leaderboard rank.
-
-> Benchmark scope matters: the full baseline covers 50 English tasks; 43.15 is a paired
-> 12-task development result; 49.57 RACE / 100% FACT is a single-task ablation. None is
-> presented as a new full-leaderboard submission.
-
-Raw results are stored under [`benchmark_results/`](benchmark_results/), including
-the [12-task RACE output](benchmark_results/deep-dev-12-race.jsonl),
+Raw evidence is available in [`benchmark_results/`](benchmark_results/), including the
+[12-task RACE output](benchmark_results/deep-dev-12-race.jsonl),
 [task-56 combined metrics](benchmark_results/deep-dev-56-breadth-metrics.json), and
 [official FACT output](benchmark_results/deep-dev-56-breadth-fact/fact_result.txt).
 
@@ -99,20 +166,21 @@ the [12-task RACE output](benchmark_results/deep-dev-12-race.jsonl),
 
 - **Store evidence, not evolving prose.** Atomic claims survive many search rounds;
   repeatedly rewriting a report discards detail and compounds summarization errors.
-- **Coverage needs a mechanical definition.** Every plan item must have independent
-  support before it is considered researched.
-- **Broad questions need global breadth constraints.** Plan-item completion alone can be
+- **Coverage needs a mechanical definition.** Every plan item needs independent support
+  before it can be considered researched.
+- **Broad questions need global breadth constraints.** Plan-item completion can be
   fooled by an under-decomposed plan, so broad tasks also require multiple loops, URLs,
   and source domains.
-- **Citation quality must be a postcondition.** The final report is checked for unknown
-  URLs and for evidenced plan items that were never cited; one bounded repair is allowed,
+- **Citation quality should be a postcondition.** The final report is checked for unknown
+  URLs and evidenced plan items that were never cited. One bounded repair is allowed,
   followed by a deterministic fallback.
-- **More retrieval is not automatically better.** Raising loop and search caps without
-  raising the output-token budget made RACE worse in an earlier ablation because more
-  material was compressed into the same report ceiling.
+- **Retrieval, context, and output budgets must scale together.** More loops and sources
+  hurt quality when the final report budget remained fixed.
+- **Benchmark the system, not just the model.** Keeping the model fixed made it possible
+  to attribute the 15.7% gain to agent design rather than model substitution.
 
-The full methodology, failed experiments, and commands are documented in
-[`docs/deepresearch-bench.md`](docs/deepresearch-bench.md).
+The complete methodology, failed experiments, and reproducible commands are documented
+in [`docs/deepresearch-bench.md`](docs/deepresearch-bench.md).
 
 ## Architecture
 
@@ -131,17 +199,15 @@ flowchart LR
     J --> K["Final cited report"]
 ```
 
-There are two explicit modes:
+The project keeps two modes behind the same model and tool interfaces, making controlled
+experiments possible:
 
 | Mode | Design | Best use |
 |---|---|---|
-| `iterative` | Query → search → summarize → reflect | Cheap, fast research |
-| `deep` | Plan → evidence → coverage audit → report → citation check | Benchmark-quality reports |
+| `iterative` | Query → search → summarize → reflect | Fast, lower-cost research |
+| `deep` | Plan → evidence → audit → write → citation check | Benchmark-quality reports |
 
-Both modes use the same provider interface and tools, which makes direct experiments
-possible without conflating a model change with an architecture change.
-
-## Quick start
+## Try it yourself
 
 Requires Python 3.10+ and [`uv`](https://github.com/astral-sh/uv).
 
@@ -152,16 +218,46 @@ uv sync --extra dev
 cp .env.example .env
 ```
 
-Run locally with Ollama and DuckDuckGo—no API keys required:
+### Run the AI agent locally without API keys
+
+With [Ollama](https://ollama.com/) installed and running, use a local model and
+DuckDuckGo search:
 
 ```bash
+ollama pull qwen2.5:7b
+
 uv run research-agent \
   --topic "What are the strongest approaches to scalable ion-trap quantum computing?" \
   --model ollama/qwen2.5:7b \
   --research-mode deep
 ```
 
-Run the benchmark configuration with a hosted model and Tavily:
+### Try the Web UI
+
+The FastAPI + React interface runs the same agent and streams planning, search, and
+report progress with Server-Sent Events.
+
+```bash
+# Terminal 1 — API
+uv run uvicorn api.main:app --reload --port 8000
+
+# Terminal 2 — UI
+cd web
+npm install
+npm run dev
+```
+
+Open `http://localhost:5173`, open **Settings**, and provide the model-provider and
+search keys required by your selected configuration. Keys remain in browser local
+storage and are passed through only for the active request; the server does not persist
+them.
+
+| Ask a question | Watch the research | Inspect the cited report |
+|---|---|---|
+| ![Idle screen](docs/images/idle.png) | ![Live research progress](docs/images/researching.png) | ![Final cited report](docs/images/result.png) |
+
+<details>
+<summary><strong>Hosted-model example and CLI options</strong></summary>
 
 ```bash
 uv run research-agent \
@@ -173,8 +269,6 @@ uv run research-agent \
   --output report.md \
   --trajectory trajectory.json
 ```
-
-Common options:
 
 | Flag | Default | Description |
 |---|---|---|
@@ -192,27 +286,7 @@ Every `Config` field is also available as a
 `RESEARCH_AGENT_<FIELD_NAME>` environment variable. Broad-task thresholds default to
 two loops, five evidence URLs, and three source domains.
 
-## Web UI
-
-The FastAPI + React interface uses the same agent and streams progress with Server-Sent
-Events. It is bring-your-own-key: provider and Tavily keys stay in browser local storage
-and are passed through for the active request rather than written by the server.
-
-| Ask | Watch the research | Inspect the report |
-|---|---|---|
-| ![Idle screen](docs/images/idle.png) | ![Live research progress](docs/images/researching.png) | ![Final cited report](docs/images/result.png) |
-
-```bash
-# Terminal 1
-uv run uvicorn api.main:app --reload --port 8000
-
-# Terminal 2
-cd web
-npm install
-npm run dev
-```
-
-Open `http://localhost:5173`.
+</details>
 
 <details>
 <summary><strong>Production build and Docker</strong></summary>
@@ -232,7 +306,10 @@ docker run -p 8000:8000 research-agent
 
 </details>
 
-## Evaluation
+## Evaluation and reproducibility
+
+<details>
+<summary><strong>Tests, internal evaluation, and DeepResearch Bench workflow</strong></summary>
 
 ### Fast regression suite
 
@@ -257,8 +334,7 @@ separate judge model for semantic grading.
 
 ### DeepResearch Bench
 
-The adapter writes the JSONL format expected by
-[DeepResearch Bench](https://github.com/Ayanami0730/deep_research_bench):
+The adapter writes the JSONL format expected by the upstream benchmark:
 
 ```bash
 uv run research-agent-bench \
@@ -270,9 +346,11 @@ uv run research-agent-bench \
   --concurrency 3
 ```
 
-Scoring remains in the benchmark's own repository so RACE and FACT are not reimplemented
-or approximated here. See the [benchmark guide](docs/deepresearch-bench.md) for the full
-two-repository workflow.
+Scoring remains in the benchmark's own repository so RACE and FACT are neither
+reimplemented nor approximated here. See the
+[benchmark guide](docs/deepresearch-bench.md) for the complete two-repository workflow.
+
+</details>
 
 ## Project structure
 
@@ -284,7 +362,7 @@ research_agent/
 ├── citation_compliance.py   # Final citation postcondition and repair
 ├── source_quality.py        # Deterministic authority and relevance ranking
 ├── state.py                 # Plans, evidence, sources, and research state
-├── llm.py                   # Provider-independent LLM client
+├── llm.py                   # Provider-independent AI model client
 ├── search.py                # DuckDuckGo and Tavily backends
 ├── fetch.py                 # Full-page extraction
 ├── grounding.py             # Gathered-source citation checks
@@ -300,6 +378,20 @@ web/                         # React + Vite frontend
 tests/                       # Network-mocked test suite
 benchmark_results/           # Raw measured outputs committed for inspection
 ```
+
+## Acknowledgments
+
+This project uses **DeepResearch Bench**, created by Mingxuan Du, Benfeng Xu, Chiwei
+Zhu, Xiaorui Wang, and Zhendong Mao. Their open benchmark, expert-written task set, and
+RACE/FACT evaluation pipeline made it possible to test this AI agent against an external
+standard instead of relying on subjective demos.
+
+- [DeepResearch Bench repository](https://github.com/Ayanami0730/deep_research_bench)
+- [Paper: *DeepResearch Bench: A Comprehensive Benchmark for Deep Research Agents*](https://arxiv.org/abs/2506.11763)
+- [Live leaderboard](https://huggingface.co/spaces/muset-ai/DeepResearch-Bench-Leaderboard)
+
+If you use this project's benchmark artifacts, please also cite the DeepResearch Bench
+paper as requested by its authors.
 
 ## License
 
