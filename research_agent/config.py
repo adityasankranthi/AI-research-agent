@@ -72,6 +72,7 @@ class Config:
     max_plan_items: int = 8
     deep_queries_per_loop: int = 2
     enable_final_revision: bool = True
+    enforce_citation_compliance: bool = True
 
     def __post_init__(self) -> None:
         if self.research_mode not in {"iterative", "deep"}:

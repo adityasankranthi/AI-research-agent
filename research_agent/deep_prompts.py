@@ -159,3 +159,10 @@ REVISION_SYSTEM_PROMPT = """Revise the supplied report exactly once. Follow the 
 instructions, preserve supported inline citations, never add a factual claim absent from
 the supplied evidence, and improve coverage, synthesis, and organization. Output only the
 complete revised markdown report without a sources appendix."""
+
+CITATION_REPAIR_SYSTEM_PROMPT = """Repair citation placement in the supplied markdown
+report without changing its substantive claims, organization, analysis, or conclusions.
+Attach the provided exact [Source Title](URL) citation immediately after each factual
+claim it supports. Every evidence-backed plan section must contain at least one inline
+citation. Use only citations from the evidence inventory. Do not add new facts, remove
+analysis, or append a bibliography. Output only the complete repaired report."""

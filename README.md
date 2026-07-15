@@ -114,7 +114,7 @@ The harness researches all 6 topics concurrently (`ThreadPoolExecutor`) — a ~2
 speedup at concurrency 3 vs. sequential (38.4s vs. 113.3s), close to the theoretical
 ceiling for 6 equal-length tasks split across 3 workers.
 
-**121 tests passing**, all mocked at the network boundary — no real network call, ~2s to
+**124 tests passing**, all mocked at the network boundary — no real network call, ~2s to
 run, safe to run constantly.
 
 </details>

@@ -8,9 +8,15 @@ the lossy compression observed when many loops repeatedly summarize prior summar
 from typing import Callable, Optional
 
 from research_agent.config import Config
+from research_agent.citation_compliance import (
+    append_missing_evidence_notes,
+    check_citation_compliance,
+    remove_unknown_citations,
+)
 from research_agent.deep_prompts import (
     AUDIT_SYSTEM_PROMPT,
     AUDIT_TOOL,
+    CITATION_REPAIR_SYSTEM_PROMPT,
     EVIDENCE_SYSTEM_PROMPT,
     EVIDENCE_TOOL,
     PLAN_SYSTEM_PROMPT,
@@ -256,6 +262,39 @@ def review_and_revise(
     return revised if revised.strip() else report
 
 
+def enforce_citations(llm: LLMClient, state: ResearchState, report: str) -> str:
+    """Make citation compliance a final postcondition, not a prompt-only hope."""
+    compliance = check_citation_compliance(report, state)
+    if compliance.compliant:
+        return report
+    evidence_inventory = "\n".join(
+        f"- Plan item {item.plan_item_id}: {item.claim} "
+        f"[{item.source_title}]({item.source_url})"
+        for item in state.evidence
+    )
+    repaired = llm.chat(
+        [
+            {"role": "system", "content": CITATION_REPAIR_SYSTEM_PROMPT},
+            {
+                "role": "user",
+                "content": f"Evidence inventory:\n{evidence_inventory}\n\nReport:\n{report}",
+            },
+        ]
+    )
+    candidate = repaired if repaired.strip() else report
+    known_urls = {item.source_url for item in state.evidence}
+    candidate = remove_unknown_citations(candidate, known_urls)
+    remaining = check_citation_compliance(candidate, state)
+    candidate = append_missing_evidence_notes(candidate, state, remaining.missing_plan_item_ids)
+    final = check_citation_compliance(candidate, state)
+    if not final.compliant:
+        raise RuntimeError(
+            "Final report failed citation compliance after repair: "
+            f"unknown_urls={final.unknown_urls}, missing_plan_items={final.missing_plan_item_ids}"
+        )
+    return candidate
+
+
 def run_deep_research(
     topic: str,
     llm: LLMClient,
@@ -299,5 +338,7 @@ def run_deep_research(
     report = write_report(llm, state, audit)
     if config.enable_final_revision:
         report = review_and_revise(llm, state, report, audit)
+    if config.enforce_citation_compliance:
+        report = enforce_citations(llm, state, report)
     state.running_summary = f"## Summary\n{report}\n\n### Sources:\n{format_citations(state.sources)}"
     return state

@@ -92,7 +92,7 @@ def test_deep_pipeline_retains_evidence_then_writes_report_once():
         chat_responses=["# Answer\nThe answer is supported. [Official](https://agency.gov/report)"],
     )
     search = _SearchTool([source])
-    config = Config(research_mode="deep", max_loops=3, min_evidence_per_plan_item=1, deep_queries_per_loop=1, enable_final_revision=False, enable_citation_grounding_check=False)
+    config = Config(research_mode="deep", max_loops=3, min_evidence_per_plan_item=1, deep_queries_per_loop=1, enable_final_revision=False, enforce_citation_compliance=False, enable_citation_grounding_check=False)
 
     state = run_deep_research("topic", llm, {"web_search": search}, config)
 
