@@ -1,0 +1,54 @@
+{
+  "task_id": 56,
+  "model": "openrouter/anthropic/claude-haiku-4-5",
+  "search_backend": "tavily",
+  "breadth_gate": {
+    "minimum_loops": 2,
+    "minimum_retained_evidence_urls": 5,
+    "minimum_source_domains": 3
+  },
+  "citation_compliance_baseline": {
+    "artifact": "deep-dev-56-citationfix.jsonl",
+    "loops": 1,
+    "gathered_sources": 9,
+    "wall_seconds": 40.9,
+    "agent_cost_usd": 0.0234,
+    "report_words": 529,
+    "inline_citations": 3,
+    "unique_citation_urls": 3,
+    "cited_domains": 2
+  },
+  "breadth_aware_run": {
+    "artifact": "deep-dev-56-breadth.jsonl",
+    "loops": 2,
+    "gathered_sources": 19,
+    "wall_seconds": 108.5,
+    "agent_cost_usd": 0.0804,
+    "grounded_citation_checks": "19/73",
+    "report_words": 1496,
+    "inline_citations": 20,
+    "unique_citation_urls": 10,
+    "cited_domains": 10,
+    "breadth_gate_met": true,
+    "official_scores": {
+      "race": {
+        "comprehensiveness": 0.4825657894736842,
+        "insight": 0.48066115702479334,
+        "instruction_following": 0.515423779574723,
+        "readability": 0.5439750692520776,
+        "overall": 0.4957479195934692,
+        "delta_points_vs_original_deep": 2.041066244465944,
+        "delta_points_vs_citation_fix": 3.835485795655434
+      },
+      "fact": {
+        "extracted_citation_instances": 21,
+        "deduplicated_urls": 11,
+        "evaluable_citations": 18,
+        "supported_citations": 18,
+        "unknown_citations": 3,
+        "citation_accuracy": 1.0,
+        "effective_citations": 18.0
+      }
+    }
+  }
+}

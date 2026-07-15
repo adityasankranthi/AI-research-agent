@@ -72,3 +72,14 @@ def test_rejects_unknown_research_mode():
 
     with pytest.raises(ValueError, match="research_mode"):
         Config(research_mode="unknown")
+
+
+def test_rejects_invalid_broad_question_thresholds():
+    import pytest
+
+    with pytest.raises(ValueError, match="broad_question_min_loops"):
+        Config(broad_question_min_loops=0)
+    with pytest.raises(ValueError, match="broad_question_min_evidence_sources"):
+        Config(broad_question_min_evidence_sources=0)
+    with pytest.raises(ValueError, match="broad_question_min_source_domains"):
+        Config(broad_question_min_source_domains=0)

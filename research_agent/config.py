@@ -71,6 +71,12 @@ class Config:
     min_evidence_per_plan_item: int = 2
     max_plan_items: int = 8
     deep_queries_per_loop: int = 2
+    # Broad tasks cannot early-stop merely because each generated plan item has
+    # minimal support. They must also demonstrate evidence breadth across loops,
+    # URLs, and independent source domains.
+    broad_question_min_loops: int = 2
+    broad_question_min_evidence_sources: int = 5
+    broad_question_min_source_domains: int = 3
     enable_final_revision: bool = True
     enforce_citation_compliance: bool = True
 
@@ -83,6 +89,12 @@ class Config:
             raise ValueError("max_plan_items must be at least 1")
         if self.deep_queries_per_loop < 1:
             raise ValueError("deep_queries_per_loop must be at least 1")
+        if self.broad_question_min_loops < 1:
+            raise ValueError("broad_question_min_loops must be at least 1")
+        if self.broad_question_min_evidence_sources < 1:
+            raise ValueError("broad_question_min_evidence_sources must be at least 1")
+        if self.broad_question_min_source_domains < 1:
+            raise ValueError("broad_question_min_source_domains must be at least 1")
         # Only Ollama needs a local base URL by default -- hosted providers (and
         # self-hosted OpenAI-compatible servers, via an explicit --api-base) resolve
         # their own endpoint from the model string itself.

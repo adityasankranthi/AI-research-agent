@@ -5,7 +5,9 @@ It retains atomic evidence across searches and synthesizes prose once at the end
 the lossy compression observed when many loops repeatedly summarize prior summaries.
 """
 
+import re
 from typing import Callable, Optional
+from urllib.parse import urlparse
 
 from research_agent.config import Config
 from research_agent.citation_compliance import (
@@ -66,7 +68,23 @@ def create_plan(llm: LLMClient, topic: str, max_items: int) -> ResearchPlan:
         )
     if not items:
         items = [PlanItem(id="core_answer", question=topic, section="Findings")]
-    return ResearchPlan(title=str(args.get("title") or topic), items=items)
+    raw_breadth = str(args.get("breadth") or "").strip().lower()
+    breadth = "broad" if raw_breadth == "broad" or _looks_broad(topic) else "focused"
+    return ResearchPlan(title=str(args.get("title") or topic), items=items, breadth=breadth)
+
+
+def _looks_broad(topic: str) -> bool:
+    """Conservative fallback when a model omits or under-classifies plan breadth."""
+    markers = (
+        r"\bgeneral method\b",
+        r"\bcompare\b|\bcomparison\b|\bversus\b|\bvs\.?\b",
+        r"\boverview\b|\blandscape\b|\bstate of (?:the )?art\b",
+        r"\bpros and cons\b|\badvantages and disadvantages\b",
+        r"\bmultiple (?:approaches|perspectives|methods|factors)\b",
+        r"\btrends?\b.*\b(?:over time|across|between)\b",
+    )
+    normalized = " ".join(topic.lower().split())
+    return any(re.search(marker, normalized) for marker in markers)
 
 
 def _plan_context(plan: ResearchPlan, evidence: list[EvidenceItem]) -> str:
@@ -93,14 +111,61 @@ def plan_complete(plan: ResearchPlan) -> bool:
     return bool(plan.items) and all(item.status == "supported" for item in plan.items)
 
 
+def _source_domain(url: str) -> str:
+    hostname = (urlparse(url).hostname or "").lower()
+    return hostname[4:] if hostname.startswith("www.") else hostname
+
+
+def breadth_requirements_met(
+    plan: ResearchPlan,
+    evidence: list[EvidenceItem],
+    loop_count: int,
+    config: Config,
+) -> bool:
+    """Return whether global evidence breadth permits an early stop."""
+    if plan.breadth != "broad":
+        return True
+    urls = {item.source_url for item in evidence}
+    domains = {_source_domain(url) for url in urls}
+    domains.discard("")
+    return (
+        loop_count >= config.broad_question_min_loops
+        and len(urls) >= config.broad_question_min_evidence_sources
+        and len(domains) >= config.broad_question_min_source_domains
+    )
+
+
+def _breadth_gap(
+    plan: ResearchPlan,
+    evidence: list[EvidenceItem],
+    loop_count: int,
+    config: Config,
+) -> str:
+    if plan.breadth != "broad" or breadth_requirements_met(plan, evidence, loop_count, config):
+        return ""
+    urls = {item.source_url for item in evidence}
+    domains = {_source_domain(url) for url in urls}
+    domains.discard("")
+    return (
+        "Broad-question breadth gate is not met: "
+        f"loops {loop_count}/{config.broad_question_min_loops}, "
+        f"evidence sources {len(urls)}/{config.broad_question_min_evidence_sources}, "
+        f"source domains {len(domains)}/{config.broad_question_min_source_domains}. "
+        "Seek evidence from previously unseen organizations or domains."
+    )
+
+
 def choose_queries(
     llm: LLMClient,
     topic: str,
     plan: ResearchPlan,
     evidence: list[EvidenceItem],
     limit: int,
+    breadth_gap: str = "",
 ) -> list[str]:
     context = _plan_context(plan, evidence)
+    if breadth_gap:
+        context += f"\n\n{breadth_gap}"
     args = llm.chat_with_tool(
         [
             {"role": "system", "content": QUERY_SYSTEM_PROMPT},
@@ -122,7 +187,8 @@ def choose_queries(
     if queries:
         return queries
     target = next((item for item in plan.items if item.status != "supported"), plan.items[0])
-    return [f"{topic} {target.question} primary sources data"]
+    suffix = "independent perspectives alternative sources" if breadth_gap else "primary sources data"
+    return [f"{topic} {target.question} {suffix}"]
 
 
 def extract_evidence(
@@ -312,7 +378,12 @@ def run_deep_research(
 
     for index in range(config.max_loops):
         queries = choose_queries(
-            llm, topic, state.plan, state.evidence, config.deep_queries_per_loop
+            llm,
+            topic,
+            state.plan,
+            state.evidence,
+            config.deep_queries_per_loop,
+            _breadth_gap(state.plan, state.evidence, state.loop_count, config),
         )
         all_sources: list[Source] = []
         for query in queries:
@@ -331,7 +402,11 @@ def run_deep_research(
         state.loop_count += 1
         if on_iteration:
             on_iteration(index, state)
-        if config.allow_early_stop and plan_complete(state.plan):
+        if (
+            config.allow_early_stop
+            and plan_complete(state.plan)
+            and breadth_requirements_met(state.plan, state.evidence, state.loop_count, config)
+        ):
             break
 
     audit = audit_evidence(llm, state)

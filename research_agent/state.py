@@ -24,6 +24,7 @@ class PlanItem:
 class ResearchPlan:
     title: str
     items: list[PlanItem] = field(default_factory=list)
+    breadth: Literal["focused", "broad"] = "focused"
 
 
 @dataclass

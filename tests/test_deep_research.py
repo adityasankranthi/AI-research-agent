@@ -1,5 +1,5 @@
 from research_agent.config import Config
-from research_agent.deep_research import choose_queries, create_plan, extract_evidence, plan_complete, run_deep_research, update_coverage
+from research_agent.deep_research import breadth_requirements_met, choose_queries, create_plan, extract_evidence, plan_complete, run_deep_research, update_coverage
 from research_agent.state import EvidenceItem, PlanItem, ResearchPlan, Source
 
 
@@ -27,6 +27,16 @@ class _SearchTool:
         return self.sources
 
 
+class _SequencedSearchTool:
+    def __init__(self, responses):
+        self.responses = list(responses)
+        self.queries = []
+
+    def run(self, query):
+        self.queries.append(query)
+        return self.responses.pop(0)
+
+
 def test_create_plan_preserves_structured_requirements_and_caps_items():
     llm = _FakeLLM(tool_responses=[{"title": "Comparison", "items": [
         {"id": "a", "question": "Compare costs", "section": "Costs", "evidence_requirements": ["current prices"]},
@@ -38,6 +48,7 @@ def test_create_plan_preserves_structured_requirements_and_caps_items():
     assert plan.title == "Comparison"
     assert [item.id for item in plan.items] == ["a"]
     assert plan.items[0].evidence_requirements == ["current prices"]
+    assert plan.breadth == "broad"
 
 
 def test_coverage_requires_configured_evidence_count():
@@ -52,6 +63,31 @@ def test_coverage_requires_configured_evidence_count():
     update_coverage(plan, evidence, minimum=2)
     assert plan.items[0].status == "supported"
     assert plan_complete(plan) is True
+
+
+def test_broad_completion_requires_loops_sources_and_independent_domains():
+    plan = ResearchPlan("t", [PlanItem("a", "q", "s")], breadth="broad")
+    evidence = [
+        EvidenceItem(f"claim {i}", f"S{i}", url, "excerpt", "a")
+        for i, url in enumerate(
+            [
+                "https://one.example/a",
+                "https://one.example/b",
+                "https://two.example/a",
+                "https://three.example/a",
+                "https://four.example/a",
+            ]
+        )
+    ]
+    config = Config(
+        broad_question_min_loops=2,
+        broad_question_min_evidence_sources=5,
+        broad_question_min_source_domains=3,
+    )
+
+    assert breadth_requirements_met(plan, evidence, loop_count=1, config=config) is False
+    assert breadth_requirements_met(plan, evidence[:4], loop_count=2, config=config) is False
+    assert breadth_requirements_met(plan, evidence, loop_count=2, config=config) is True
 
 
 def test_extract_evidence_rejects_unknown_urls():
@@ -101,3 +137,49 @@ def test_deep_pipeline_retains_evidence_then_writes_report_once():
     assert state.plan is not None and state.plan.items[0].status == "supported"
     assert llm.tools_seen == ["create_research_plan", "choose_research_query", "record_evidence", "audit_evidence"]
     assert "[Official](https://agency.gov/report)" in state.running_summary
+
+
+def test_broad_pipeline_does_not_early_stop_on_one_supported_loop():
+    first = Source("Official", "https://agency.gov/report", "official evidence")
+    second = Source("Independent", "https://university.edu/study", "independent evidence")
+    llm = _FakeLLM(
+        tool_responses=[
+            {
+                "title": "General method",
+                "breadth": "broad",
+                "items": [
+                    {
+                        "id": "core",
+                        "question": "What is the general method?",
+                        "section": "Method",
+                        "evidence_requirements": ["method", "limitations"],
+                    }
+                ],
+            },
+            {"queries": [{"query": "general method official", "plan_item_id": "core", "expected_information": "method"}]},
+            {"items": [{"claim": "A method exists.", "source_title": "Official", "source_url": first.url, "excerpt": first.content, "plan_item_id": "core"}]},
+            {"queries": [{"query": "general method independent limitations", "plan_item_id": "core", "expected_information": "limitations"}]},
+            {"items": [{"claim": "It has limitations.", "source_title": "Independent", "source_url": second.url, "excerpt": second.content, "plan_item_id": "core"}]},
+            {"unsupported_plan_item_ids": [], "contradictions": [], "writing_instructions": ["Synthesize both sources"]},
+        ],
+        chat_responses=["# Method\nSupported synthesis."],
+    )
+    search = _SequencedSearchTool([[first], [second]])
+    config = Config(
+        research_mode="deep",
+        max_loops=3,
+        min_evidence_per_plan_item=1,
+        deep_queries_per_loop=1,
+        broad_question_min_loops=2,
+        broad_question_min_evidence_sources=2,
+        broad_question_min_source_domains=2,
+        enable_final_revision=False,
+        enforce_citation_compliance=False,
+        enable_citation_grounding_check=False,
+    )
+
+    state = run_deep_research("Is there a general method?", llm, {"web_search": search}, config)
+
+    assert state.loop_count == 2
+    assert len(state.evidence) == 2
+    assert search.queries == ["general method official", "general method independent limitations"]

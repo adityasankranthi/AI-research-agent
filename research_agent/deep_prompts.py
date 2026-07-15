@@ -4,7 +4,9 @@ PLAN_SYSTEM_PROMPT = """You are planning a rigorous research report. Decompose t
 user's request into independently verifiable requirements. Preserve every explicit
 comparison, date range, entity, metric, requested recommendation, and output constraint.
 Each item must be narrow enough to research with targeted web searches. Call the tool;
-do not write the report."""
+do not write the report. Classify breadth as broad when the answer requires a general
+method, comparison, synthesis, multiple perspectives, or several distinct subquestions;
+otherwise classify it as focused."""
 
 PLAN_TOOL = {
     "type": "function",
@@ -15,6 +17,7 @@ PLAN_TOOL = {
             "type": "object",
             "properties": {
                 "title": {"type": "string"},
+                "breadth": {"type": "string", "enum": ["focused", "broad"]},
                 "items": {
                     "type": "array",
                     "items": {
@@ -32,7 +35,7 @@ PLAN_TOOL = {
                     },
                 },
             },
-            "required": ["title", "items"],
+            "required": ["title", "breadth", "items"],
         },
     },
 }
@@ -40,7 +43,9 @@ PLAN_TOOL = {
 QUERY_SYSTEM_PROMPT = """Choose a small portfolio of non-overlapping web searches for a
 research agent. Target the highest-priority plan items that lack independent evidence.
 Prefer primary-source, quantitative, and countervailing queries over generic overviews.
-Each query must be self-contained and tied to exactly one plan item."""
+When a supplied breadth gate is unmet, prioritize previously unseen organizations and
+domains even if every plan item has minimal support. Each query must be self-contained
+and tied to exactly one plan item."""
 
 QUERY_TOOL = {
     "type": "function",

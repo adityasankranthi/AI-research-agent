@@ -116,6 +116,9 @@ def main(
     max_plan_items: int = typer.Option(8, "--max-plan-items"),
     queries_per_loop: int = typer.Option(2, "--queries-per-loop"),
     min_evidence_per_item: int = typer.Option(2, "--min-evidence-per-item"),
+    broad_min_loops: int = typer.Option(2, "--broad-min-loops"),
+    broad_min_evidence_sources: int = typer.Option(5, "--broad-min-evidence-sources"),
+    broad_min_source_domains: int = typer.Option(3, "--broad-min-source-domains"),
     final_revision: bool = typer.Option(
         True,
         "--final-revision/--no-final-revision",
@@ -154,6 +157,9 @@ def main(
         max_plan_items=max_plan_items,
         deep_queries_per_loop=queries_per_loop,
         min_evidence_per_plan_item=min_evidence_per_item,
+        broad_question_min_loops=broad_min_loops,
+        broad_question_min_evidence_sources=broad_min_evidence_sources,
+        broad_question_min_source_domains=broad_min_source_domains,
         enable_final_revision=final_revision,
     )
 
