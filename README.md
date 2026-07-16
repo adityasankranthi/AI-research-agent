@@ -2,12 +2,36 @@
 
 [![CI](https://github.com/adityasankranthi/AI-research-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/adityasankranthi/AI-research-agent/actions/workflows/ci.yml)
 ![Paired RACE gain](https://img.shields.io/badge/paired_RACE_gain-%2B15.7%25-2ea44f)
-![FACT citation accuracy](https://img.shields.io/badge/FACT_citation_accuracy-91.1%25-0969da)
+![Full-run RACE](https://img.shields.io/badge/GPT--5.5_RACE-43.13-8250df)
+![FACT citation validity](https://img.shields.io/badge/FACT_citation_validity-90.80%25-0969da)
 [![Live DeepResearch Bench](https://img.shields.io/badge/DeepResearch_Bench-live_leaderboard-FFD21E)](https://huggingface.co/spaces/muset-ai/DeepResearch-Bench-Leaderboard)
+
+**[Try the AI agent locally—no API keys required →](#try-it-yourself)** ·
+**[Launch the Web UI →](#try-the-web-ui)** ·
+**[Inspect the benchmark artifacts →](benchmark_results/)**
 
 An AI web-research agent that plans what to investigate, searches for independent
 support, preserves claims as atomic evidence, audits coverage, and writes a cited report
 only when the evidence is ready.
+
+## Table of contents
+
+- [Overview](#overview)
+- [Metrics at a glance](#metrics-at-a-glance)
+- [Benchmark results](#benchmark-results)
+  - [Live leaderboard comparison](#live-leaderboard-comparison)
+  - [Why a bigger model was not the answer](#why-a-bigger-model-was-not-the-answer)
+- [How we improved report quality](#how-we-improved-report-quality)
+- [What the experiments taught us](#what-the-experiments-taught-us)
+- [Architecture](#architecture)
+- [Try it yourself](#try-it-yourself)
+  - [Run locally without API keys](#run-the-ai-agent-locally-without-api-keys)
+  - [Try the Web UI](#try-the-web-ui)
+- [Evaluation and reproducibility](#evaluation-and-reproducibility)
+- [Project structure](#project-structure)
+- [Acknowledgments](#acknowledgments)
+
+## Overview
 
 This project was built from scratch in plain Python—without an agent orchestration
 framework—and improved through measured experiments on
@@ -24,14 +48,31 @@ The agent can:
 - repair or remove citations that fail deterministic compliance checks; and
 - run with hosted AI models or locally through Ollama.
 
-## Results
+## Metrics at a glance
+
+**[Run it locally →](#try-it-yourself)** or **[use the Web UI →](#try-the-web-ui)**
+
+| Metric | Final measured result | What it demonstrates |
+|---|---:|---|
+| GPT-5.5 RACE | **43.13** | Inside the current published top-10 score band |
+| FACT citation validity | **90.80%** | 9 in 10 evaluated citation instances were supported |
+| Valid citations per report | **32.76** | Exactly **2×** the 16.38 pre-planner baseline |
+| Paired architecture gain | **+5.86 RACE / +15.7%** | Same 12 tasks, model, backend, and judge |
+| Full-run completion | **50/50 English tasks** | Zero failed agent reports |
+| Regression suite | **127 tests passing** | Model, search, fetch, and API boundaries mocked |
+
+> **Benchmark scope:** 43.13 is a 50-English-task result, not an official bilingual
+> leaderboard submission. It places the project in the published top-10 score band; it
+> does not establish an official rank.
+
+## Benchmark results
 
 The central result is an engineering result: **changing the agent architecture improved
 quality more reliably than changing to a larger model.**
 
-| Experiment | Evaluation scope | Measured result |
+| Experiment | Controlled evaluation scope | Measured result |
 |---|---:|---:|
-| Citation-precision baseline | 50 English benchmark tasks | **91.1% FACT citation accuracy** |
+| Citation-precision baseline | 50 English benchmark tasks | 35.50 RACE / 91.1% FACT / 16.38 valid citations |
 | Evidence-first architecture | Fixed 12-task paired set | **37.29 → 43.15 RACE** |
 | Broad-question stopping rule | Official task-56 evaluation | **45.74 → 49.57 RACE** |
 | Breadth-aware citation validation | Official task-56 FACT evaluation | **100% accuracy, 18 effective citations** |
@@ -41,42 +82,38 @@ On the fixed development set, planning, atomic evidence, and write-once synthesi
 RACE by **5.86 points / 15.7%** with the same
 `openrouter/anthropic/claude-haiku-4-5` model and Tavily search backend.
 
-### How this compares with the live leaderboard
+### Live leaderboard comparison
 
 [Open the live DeepResearch Bench leaderboard →](https://huggingface.co/spaces/muset-ai/DeepResearch-Bench-Leaderboard)
 
-*Comparison checked 15 July 2026 against leaderboard data updated 28 June 2026.*
+*Comparison checked 16 July 2026 from the official leaderboard Space CSV.*
 
-DeepResearch Bench now maintains a new GPT-5.5-evaluated leaderboard and a legacy
-Gemini-2.5-evaluated leaderboard. This project's saved results were produced with the
-legacy evaluator, so only the legacy score band is relevant—and a development subset
-cannot be treated as an official full-benchmark rank.
+The final architecture was evaluated with the same **GPT-5.5 RACE judge** used by the
+current leaderboard. Its 43.13 average falls inside the published top-10 score band:
 
-| Comparison | RACE | What can be concluded |
+| Score-band comparison | GPT-5.5 RACE | Scope |
 |---|---:|---|
-| Current legacy leaderboard top-10 cutoff | **56.23** | Full leaderboard result |
-| Current legacy rank 26 | **49.71** | Full leaderboard result |
-| **This agent: strongest task-56 run** | **49.57** | Numerically between legacy ranks 26 and 27; single-task score only |
-| Current legacy rank 27 | **49.33** | Full leaderboard result |
-| **This agent: paired development average** | **43.15** | 12-task engineering result; not rank-eligible |
+| Published rank 8 — OpenAI Deep Research | **47.84** | Full bilingual benchmark |
+| **This AI agent — final architecture** | **43.13** | 50 English tasks |
+| Published rank 9 — Perplexity Research | **43.05** | Full bilingual benchmark |
+| Published rank 10 — Grok Deeper Search | **41.22** | Full bilingual benchmark |
 
-The strongest task result is **6.66 RACE points below the current legacy top-10 cutoff**
-and sits inside the score band of published deep-research systems. That is encouraging
-evidence, not a claimed rank: an official position requires a full submission evaluated
-under one consistent judge version.
+Numerically, this agent is **0.08 points above the published rank-9 score** and 1.91
+points above the current top-10 cutoff. That is a score-band comparison, not a claimed
+official rank: our run covers the benchmark's 50 English tasks, while leaderboard
+submissions cover the complete English-and-Chinese suite.
 
-Citation precision is the standout result at larger scale. In the public leaderboard
-snapshot used during the experiment, this agent's **91.1% FACT citation accuracy** was
-higher than every reported result; the next highest was 87.3%. Because our run contains
-the 50 English tasks rather than the complete bilingual suite, this remains a precision
-comparison—not an official leaderboard placement.
+The current GPT-5.5 table does not publish FACT values. Against the FACT values still
+listed in the legacy table, this run's **90.80% citation validity** is 3.48 points above
+the highest displayed result, 87.32%. This is also only a numerical comparison because
+the evaluator generation and task scope differ.
 
-> **Scope, stated plainly:** 35.50 RACE / 91.1% FACT is a 50-English-task pre-planner
-> baseline; 43.15 is a paired 12-task development result; and 49.57 RACE / 100% FACT is
-> a single-task ablation. The raw artifacts are committed for inspection, but none is
-> presented as a full leaderboard submission.
+> **Scope, stated plainly:** 43.13 RACE / 90.80% FACT is the final 50-English-task run;
+> 35.50 RACE / 91.1% FACT is the 50-task pre-planner baseline under the earlier evaluator;
+> 43.15 is a paired 12-task architecture experiment; and 49.57 RACE / 100% FACT is a
+> single-task ablation. The project claims a top-10 **score band**, not an official rank.
 
-### A bigger model did not produce the improvement
+### Why a bigger model was not the answer
 
 Before redesigning the pipeline, a three-task ablation tested Claude Sonnet with much
 larger retrieval limits. It did not beat the simpler Haiku configuration.
@@ -141,23 +178,30 @@ FACT extracted 21 citation instances across 11 URLs: all **18 evaluable citation
 supported**, while three were marked unknown and excluded by the benchmark. The result
 was **100% citation accuracy and 18.0 effective citations**.
 
-### 3. Citation precision was strong before report depth was strong
+### 3. Evidence depth doubled while citation precision stayed near 91%
 
-The original iterative AI agent completed all 50 English tasks with:
+The final 50-task run shows what the architecture changed at scale:
 
-| Metric | Result |
-|---|---:|
-| RACE overall | 35.50 |
-| Average citations per report | 17.98 |
-| Effective citations per report | 16.38 |
-| **FACT citation accuracy** | **91.1%** |
+| 50-English-task run | RACE | Citations/report | Valid citations/report | FACT validity |
+|---|---:|---:|---:|---:|
+| Iterative pre-planner baseline | 35.50 | 17.98 | 16.38 | **91.1%** |
+| **Final evidence-first architecture** | **43.13** | **36.08** | **32.76** | **90.80%** |
 
-That result exposed the real bottleneck. The agent could cite accurately, but accurate
-citations alone did not guarantee comprehensive, insightful research. The new planner,
-evidence store, coverage audit, breadth rules, and final citation postcondition were
-built to improve the missing depth without giving up precision.
+The final agent produced exactly **2× as many valid citation instances per report** while
+holding citation validity within 0.3 percentage points of the precision-focused baseline.
+Because the RACE and FACT judge generations changed between these two full runs, this
+table is descriptive rather than a causal paired comparison. The controlled 12-task
+experiment above—same prompts, model, backend, and judge—is the evidence that attributes
+the quality gain to architecture.
+
+The full run also clarifies the earlier 100% result: **100% FACT belonged only to the
+task-56 breadth ablation**. Across all 50 English tasks, the final measured citation
+validity is **90.80%**.
 
 Raw evidence is available in [`benchmark_results/`](benchmark_results/), including the
+[final 50-task reports](benchmark_results/deep-full-50-final.jsonl),
+[GPT-5.5 RACE result](benchmark_results/deep-full-50-final-race-gpt55/race_result.txt),
+[GPT-5.4-mini FACT result](benchmark_results/deep-full-50-final-fact-gpt54mini/fact_result.txt),
 [12-task RACE output](benchmark_results/deep-dev-12-race.jsonl),
 [task-56 combined metrics](benchmark_results/deep-dev-56-breadth-metrics.json), and
 [official FACT output](benchmark_results/deep-dev-56-breadth-fact/fact_result.txt).

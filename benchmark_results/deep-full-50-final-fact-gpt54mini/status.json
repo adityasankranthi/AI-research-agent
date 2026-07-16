@@ -1,0 +1,25 @@
+{
+  "status": "complete",
+  "evaluator": "openai/gpt-5.4-mini",
+  "total_tasks": 50,
+  "scraped_tasks": 50,
+  "validated_tasks": 50,
+  "remaining_validation_tasks": 0,
+  "remaining_ids": [],
+  "extracted_citations": 2069,
+  "deduplicated_citations": 2033,
+  "unique_urls": 1056,
+  "source_failures": {
+    "http_422": 1,
+    "http_524": 6,
+    "http_402": 0
+  },
+  "validation_errors": 2,
+  "last_jina_verification_http_status": 200,
+  "fact": {
+    "average_citations": 36.08,
+    "average_valid_citations": 32.76,
+    "citation_validity": 0.9079822616407982
+  },
+  "note": "Task 73 extraction used deterministic inline Markdown citation recovery after repeated malformed judge JSON."
+}
