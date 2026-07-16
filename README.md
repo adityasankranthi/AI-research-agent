@@ -296,9 +296,14 @@ search keys required by your selected configuration. Keys remain in browser loca
 storage and are passed through only for the active request; the server does not persist
 them.
 
-| Ask a question | Watch the research | Inspect the cited report |
-|---|---|---|
-| ![Idle screen](docs/images/idle.png) | ![Live research progress](docs/images/researching.png) | ![Final cited report](docs/images/result.png) |
+| Ask a question |
+![Idle screen](docs/images/idle.png) 
+
+| Watch the research |
+![Live research progress](docs/images/researching.png) 
+
+| Inspect the cited report |
+![Final cited report](docs/images/result.png) 
 
 <details>
 <summary><strong>Hosted-model example and CLI options</strong></summary>
